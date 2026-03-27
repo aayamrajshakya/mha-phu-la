@@ -43,6 +43,19 @@ export interface Message {
   created_at: string
 }
 
+export interface Outing {
+  id: string
+  creator_id: string
+  partner_id: string
+  type: 'coffee' | 'movies' | 'food' | 'walk'
+  status: 'pending' | 'completed' | 'cancelled'
+  checkin_code: string | null
+  checkin_code_expires_at: string | null
+  reward_unlocked_at: string | null
+  created_at: string
+  partner: Pick<User, 'id' | 'name' | 'avatar_url'>
+}
+
 export interface Conversation {
   id: string
   created_at: string

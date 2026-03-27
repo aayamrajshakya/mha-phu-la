@@ -1,17 +1,19 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Heart } from 'lucide-react'
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-violet-50 via-purple-50 to-pink-50 px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-100 px-4">
       <div className="text-center max-w-md">
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <div className="bg-violet-600 text-white rounded-2xl p-3">
-            <Heart className="w-8 h-8" />
-          </div>
+        <div className="flex items-center justify-center mb-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="https://stickershop.line-scdn.net/stickershop/v1/sticker/4809283/android/sticker.png?v=1"
+            alt="Mha Fu La? logo"
+            className="w-28 h-28 object-contain"
+          />
         </div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-3">MindBridge</h1>
+        <h1 className="text-4xl font-bold text-gray-900 mb-3">Mha Fu La?</h1>
         <p className="text-lg text-gray-600 mb-2">
           A safe space to connect, share, and heal — together.
         </p>
@@ -21,22 +23,17 @@ export default function LandingPage() {
 
         <div className="flex flex-col gap-3">
           <Link href="/auth?mode=signup">
-            <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-full h-12 text-base font-semibold">
+            <Button className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 rounded-full h-12 text-base font-semibold">
               Get started
             </Button>
           </Link>
           <Link href="/auth?mode=login">
-            <Button variant="outline" className="w-full rounded-full h-12 text-base font-semibold border-violet-200 text-violet-700 hover:bg-violet-50">
+            <Button variant="outline" className="w-full rounded-full h-12 text-base font-semibold border-yellow-400 text-gray-900 hover:bg-yellow-50">
               I already have an account
             </Button>
           </Link>
         </div>
 
-        <div className="mt-10 flex items-center justify-center gap-6 text-sm text-gray-400">
-          <span>🔒 Anonymous friendly</span>
-          <span>💙 Peer support</span>
-          <span>📍 Nearby people</span>
-        </div>
       </div>
     </div>
   )

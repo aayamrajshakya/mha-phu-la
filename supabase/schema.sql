@@ -198,6 +198,32 @@ create policy "Users can upload post images" on storage.objects
   for insert with check (bucket_id = 'posts' and auth.uid()::text = (storage.foldername(name))[1]);
 
 -- ========================
+-- OUTINGS & REWARDS
+-- ========================
+create table if not exists outings (
+  id uuid primary key default gen_random_uuid(),
+  creator_id uuid references profiles(id) on delete cascade not null,
+  partner_id uuid references profiles(id) on delete cascade not null,
+  type text not null check (type in ('coffee', 'movies', 'food', 'walk')),
+  status text default 'pending' check (status in ('pending', 'completed', 'cancelled')),
+  checkin_code text,
+  checkin_code_expires_at timestamptz,
+  reward_unlocked_at timestamptz,
+  created_at timestamptz default now()
+);
+
+alter table outings enable row level security;
+
+create policy "Users can view their outings" on outings for select
+  using (auth.uid() = creator_id or auth.uid() = partner_id);
+
+create policy "Users can create outings" on outings for insert
+  with check (auth.uid() = creator_id);
+
+create policy "Participants can update outings" on outings for update
+  using (auth.uid() = creator_id or auth.uid() = partner_id);
+
+-- ========================
 -- REALTIME
 -- ========================
 -- Enable realtime on messages table in Supabase dashboard:

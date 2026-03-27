@@ -39,7 +39,7 @@ export default function ConversationList({ conversations }: Props) {
                 <div className="relative">
                   <Avatar className="w-12 h-12">
                     <AvatarImage src={conv.other_user?.avatar_url ?? ''} />
-                    <AvatarFallback className="bg-violet-100 text-violet-700 font-medium">
+                    <AvatarFallback className="bg-yellow-100 text-yellow-500 font-medium">
                       {conv.other_user?.name?.[0]?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -65,7 +65,7 @@ export default function ConversationList({ conversations }: Props) {
                 </div>
 
                 {conv.unread_count > 0 && (
-                  <span className="bg-violet-600 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                  <span className="bg-yellow-400 text-gray-900 text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
                     {conv.unread_count}
                   </span>
                 )}

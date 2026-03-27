@@ -72,7 +72,7 @@ export default function ProfileClient({ profile, posts }: Props) {
   if (!profile) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-400">Profile not found. <a href="/onboarding" className="text-violet-600">Complete setup</a></p>
+        <p className="text-gray-400">Profile not found. <a href="/onboarding" className="text-yellow-400">Complete setup</a></p>
       </div>
     )
   }
@@ -88,7 +88,7 @@ export default function ProfileClient({ profile, posts }: Props) {
               <Button size="sm" variant="ghost" onClick={() => setEditing(false)} className="h-8 w-8 p-0 text-gray-500">
                 <X className="w-4 h-4" />
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving} className="h-8 rounded-full bg-violet-600 hover:bg-violet-700 px-3">
+              <Button size="sm" onClick={handleSave} disabled={saving} className="h-8 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 px-3">
                 {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
               </Button>
             </>
@@ -112,7 +112,7 @@ export default function ProfileClient({ profile, posts }: Props) {
           <div className="relative">
             <Avatar className="w-20 h-20">
               <AvatarImage src={avatarUrl} />
-              <AvatarFallback className="bg-violet-100 text-violet-700 text-2xl font-bold">
+              <AvatarFallback className="bg-yellow-100 text-yellow-500 text-2xl font-bold">
                 {profile.name?.[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
@@ -168,7 +168,7 @@ export default function ProfileClient({ profile, posts }: Props) {
                   key={m.label}
                   onClick={() => setForm(f => ({ ...f, mood: m.label }))}
                   className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full border transition-all ${
-                    form.mood === m.label ? 'border-violet-500 bg-violet-50' : 'border-gray-200 bg-white'
+                    form.mood === m.label ? 'border-yellow-500 bg-yellow-50' : 'border-gray-200 bg-white'
                   }`}
                 >
                   {m.emoji} {m.label}

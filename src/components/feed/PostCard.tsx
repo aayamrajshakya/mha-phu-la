@@ -21,7 +21,7 @@ export default function PostCard({ post, onLike }: Props) {
       <div className="flex gap-3">
         <Avatar className="w-10 h-10 flex-shrink-0">
           <AvatarImage src={post.user?.avatar_url ?? ''} />
-          <AvatarFallback className="bg-violet-100 text-violet-700 text-sm font-medium">
+          <AvatarFallback className="bg-yellow-100 text-yellow-500 text-sm font-medium">
             {post.user?.name?.[0]?.toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -68,7 +68,7 @@ export default function PostCard({ post, onLike }: Props) {
               <Heart className={`w-4 h-4 ${post.is_liked ? 'fill-current' : ''}`} />
               <span>{post.likes_count}</span>
             </button>
-            <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-violet-500 transition-colors">
+            <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-yellow-500 transition-colors">
               <MessageCircle className="w-4 h-4" />
               <span>{post.comments_count ?? 0}</span>
             </button>

@@ -47,16 +47,16 @@ function AuthForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-violet-50 via-purple-50 to-pink-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-yellow-50 via-amber-50 to-yellow-100 px-4">
       <Card className="w-full max-w-sm shadow-xl border-0">
         <CardHeader className="text-center pb-2">
           <div className="flex justify-center mb-3">
-            <div className="bg-violet-600 text-white rounded-2xl p-2.5">
+            <div className="bg-yellow-400 text-gray-900 rounded-2xl p-2.5">
               <Heart className="w-6 h-6" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">
-            {mode === 'signup' ? 'Join MindBridge' : 'Welcome back'}
+            {mode === 'signup' ? 'Join Mha Fu La?' : 'Welcome back'}
           </CardTitle>
           <CardDescription>
             {mode === 'signup'
@@ -87,7 +87,7 @@ function AuthForm() {
             <Button
               type="submit"
               disabled={loading}
-              className="h-11 rounded-full bg-violet-600 hover:bg-violet-700 font-semibold mt-1"
+              className="h-11 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-gray-900 font-semibold mt-1"
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : mode === 'signup' ? 'Create account' : 'Sign in'}
             </Button>
@@ -96,11 +96,11 @@ function AuthForm() {
           <p className="text-center text-sm text-gray-500 mt-4">
             {mode === 'signup' ? (
               <>Already have an account?{' '}
-                <Link href="/auth?mode=login" className="text-violet-600 font-medium hover:underline">Sign in</Link>
+                <Link href="/auth?mode=login" className="text-yellow-400 font-medium hover:underline">Sign in</Link>
               </>
             ) : (
               <>Don&apos;t have an account?{' '}
-                <Link href="/auth?mode=signup" className="text-violet-600 font-medium hover:underline">Sign up</Link>
+                <Link href="/auth?mode=signup" className="text-yellow-400 font-medium hover:underline">Sign up</Link>
               </>
             )}
           </p>

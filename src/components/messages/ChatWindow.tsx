@@ -94,7 +94,7 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
         </Link>
         <Avatar className="w-9 h-9">
           <AvatarImage src={partner.avatar_url ?? ''} />
-          <AvatarFallback className="bg-violet-100 text-violet-700 text-sm font-medium">
+          <AvatarFallback className="bg-yellow-100 text-yellow-500 text-sm font-medium">
             {partner.name?.[0]?.toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -119,7 +119,7 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
               <div
                 className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   isMe
-                    ? 'bg-violet-600 text-white rounded-br-md'
+                    ? 'bg-yellow-400 text-gray-900 rounded-br-md'
                     : 'bg-white text-gray-800 shadow-sm rounded-bl-md'
                 }`}
               >
@@ -138,13 +138,13 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Message..."
-          className="rounded-full h-10 bg-gray-100 border-0 focus-visible:ring-violet-300"
+          className="rounded-full h-10 bg-gray-100 border-0 focus-visible:ring-yellow-300"
         />
         <Button
           onClick={sendMessage}
           disabled={!input.trim() || sending}
           size="sm"
-          className="rounded-full w-10 h-10 p-0 flex-shrink-0 bg-violet-600 hover:bg-violet-700"
+          className="rounded-full w-10 h-10 p-0 flex-shrink-0 bg-yellow-400 hover:bg-yellow-500 text-gray-900"
         >
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </Button>

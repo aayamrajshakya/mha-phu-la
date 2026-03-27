@@ -48,7 +48,7 @@ export default function CreatePost({ currentUser, onPost }: Props) {
       <div className="flex gap-3">
         <Avatar className="w-9 h-9 flex-shrink-0">
           <AvatarImage src={currentUser.avatar_url ?? ''} />
-          <AvatarFallback className="bg-violet-100 text-violet-700 text-sm font-medium">
+          <AvatarFallback className="bg-yellow-100 text-yellow-500 text-sm font-medium">
             {currentUser.name?.[0]?.toUpperCase()}
           </AvatarFallback>
         </Avatar>
@@ -65,7 +65,7 @@ export default function CreatePost({ currentUser, onPost }: Props) {
             <img src={imageUrl} alt="post" className="rounded-xl max-h-40 object-cover w-full" />
           )}
           <div className="flex items-center justify-between">
-            <label className="cursor-pointer text-gray-400 hover:text-violet-500 transition-colors">
+            <label className="cursor-pointer text-gray-400 hover:text-yellow-500 transition-colors">
               {uploading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
@@ -77,7 +77,7 @@ export default function CreatePost({ currentUser, onPost }: Props) {
               size="sm"
               onClick={handleSubmit}
               disabled={!content.trim() || posting}
-              className="rounded-full bg-violet-600 hover:bg-violet-700 h-8 px-4 gap-1.5"
+              className="rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-gray-900 h-8 px-4 gap-1.5"
             >
               {posting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
               Post

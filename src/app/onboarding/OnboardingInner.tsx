@@ -109,10 +109,10 @@ export default function OnboardingInner() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-violet-50 to-pink-50">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-yellow-50 to-amber-50">
       <div className="h-1 bg-gray-200">
         <div
-          className="h-1 bg-violet-500 transition-all duration-500"
+          className="h-1 bg-yellow-500 transition-all duration-500"
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -120,10 +120,10 @@ export default function OnboardingInner() {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-2 mb-8">
-            <div className="bg-violet-600 text-white rounded-xl p-2">
+            <div className="bg-yellow-400 text-gray-900 rounded-xl p-2">
               <Heart className="w-5 h-5" />
             </div>
-            <span className="font-bold text-violet-700 text-lg">MindBridge</span>
+            <span className="font-bold text-yellow-500 text-lg">Mha Fu La?</span>
           </div>
 
           {step === 'name' && (
@@ -183,8 +183,8 @@ export default function OnboardingInner() {
                     onClick={() => setForm(f => ({ ...f, mood: m.label }))}
                     className={`flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all ${
                       form.mood === m.label
-                        ? 'border-violet-500 bg-violet-50'
-                        : 'border-gray-100 bg-white hover:border-violet-200'
+                        ? 'border-yellow-500 bg-yellow-50'
+                        : 'border-gray-100 bg-white hover:border-yellow-200'
                     }`}
                   >
                     <span className="text-2xl">{m.emoji}</span>
@@ -203,7 +203,7 @@ export default function OnboardingInner() {
                 <Button
                   onClick={detectLocation}
                   disabled={loading}
-                  className="h-12 rounded-xl bg-violet-600 hover:bg-violet-700 gap-2"
+                  className="h-12 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-gray-900 gap-2"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
                   Detect my location
@@ -224,17 +224,17 @@ export default function OnboardingInner() {
               <p className="text-gray-500 mb-6 text-sm">Optional — you can add one later</p>
               <div className="flex flex-col items-center gap-4">
                 <label className="cursor-pointer">
-                  <div className="w-28 h-28 rounded-full bg-violet-100 flex items-center justify-center overflow-hidden border-4 border-violet-200 hover:border-violet-400 transition-colors">
+                  <div className="w-28 h-28 rounded-full bg-yellow-100 flex items-center justify-center overflow-hidden border-4 border-yellow-200 hover:border-yellow-400 transition-colors">
                     {form.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={form.avatar_url} alt="avatar" className="w-full h-full object-cover" />
                     ) : (
-                      <Camera className="w-8 h-8 text-violet-400" />
+                      <Camera className="w-8 h-8 text-yellow-400" />
                     )}
                   </div>
                   <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                 </label>
-                {uploading && <p className="text-sm text-violet-500">Uploading...</p>}
+                {uploading && <p className="text-sm text-yellow-500">Uploading...</p>}
               </div>
             </div>
           )}
@@ -250,7 +250,7 @@ export default function OnboardingInner() {
               <Button
                 onClick={step === 'photo' ? handleSubmit : next}
                 disabled={!canProceed() || loading || uploading}
-                className="w-full h-12 rounded-full bg-violet-600 hover:bg-violet-700 font-semibold gap-2"
+                className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-gray-900 font-semibold gap-2"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
                   <>
