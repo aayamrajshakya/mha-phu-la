@@ -21,10 +21,29 @@ export default async function ProfilePage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
+  const [{ data: sentConns }, { data: receivedConns }] = await Promise.all([
+    supabase
+      .from('connections')
+      .select('receiver:profiles!connections_receiver_id_fkey(id, name, avatar_url, mood)')
+      .eq('requester_id', user.id)
+      .eq('status', 'accepted'),
+    supabase
+      .from('connections')
+      .select('requester:profiles!connections_requester_id_fkey(id, name, avatar_url, mood)')
+      .eq('receiver_id', user.id)
+      .eq('status', 'accepted'),
+  ])
+
+  const friends = [
+    ...((sentConns ?? []).map((c: { receiver: unknown }) => c.receiver)),
+    ...((receivedConns ?? []).map((c: { requester: unknown }) => c.requester)),
+  ] as { id: string; name: string; avatar_url: string | null; mood: string | null }[]
+
   return (
     <ProfileClient
       profile={profile}
       posts={(posts ?? []).map(p => ({ ...p, likes_count: p.likes?.[0]?.count ?? 0 }))}
+      friends={friends}
     />
   )
 }
