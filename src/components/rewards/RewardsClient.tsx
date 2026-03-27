@@ -1,31 +1,46 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { Outing, User } from '@/types'
+import { useState } from 'react'
+import { User } from '@/types'
 import OutingCard from './OutingCard'
 import PlanOutingDialog from './PlanOutingDialog'
 import { Button } from '@/components/ui/button'
 import { Gift, Plus } from 'lucide-react'
+import { OutingType } from '@/lib/rewards'
+
+export type LocalOuting = {
+  id: string
+  type: OutingType
+  status: 'pending' | 'completed'
+  is_creator: boolean
+  checkin_code: string | null
+  checkin_code_expires_at: string | null
+  partner: { id: string; name: string; avatar_url: string | null }
+  created_at: string
+}
 
 interface Props {
-  outings: (Outing & { is_creator: boolean })[]
   friends: Pick<User, 'id' | 'name' | 'avatar_url'>[]
   currentUserId: string
 }
 
-export default function RewardsClient({ outings, friends, currentUserId }: Props) {
+export default function RewardsClient({ friends, currentUserId }: Props) {
+  const [outings, setOutings] = useState<LocalOuting[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
-  const router = useRouter()
 
-  const refresh = useCallback(() => router.refresh(), [router])
+  function handleCreated(outing: LocalOuting) {
+    setOutings(prev => [outing, ...prev])
+  }
+
+  function handleUpdated(id: string, updates: Partial<LocalOuting>) {
+    setOutings(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o))
+  }
 
   const active = outings.filter(o => o.status === 'pending')
   const completed = outings.filter(o => o.status === 'completed')
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Header */}
       <div className="bg-white border-b border-gray-100 px-4 pt-12 pb-4 sticky top-0 z-10">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div className="flex items-center gap-2">
@@ -44,7 +59,6 @@ export default function RewardsClient({ outings, friends, currentUserId }: Props
       </div>
 
       <div className="max-w-lg mx-auto px-4 pt-4 space-y-6">
-        {/* How it works banner */}
         {outings.length === 0 && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 text-center">
             <p className="text-2xl mb-2">🎉</p>
@@ -61,25 +75,23 @@ export default function RewardsClient({ outings, friends, currentUserId }: Props
           </div>
         )}
 
-        {/* Active outings */}
         {active.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Active</h2>
             <div className="space-y-3">
               {active.map(o => (
-                <OutingCard key={o.id} outing={o} onUpdate={refresh} />
+                <OutingCard key={o.id} outing={o} onUpdated={handleUpdated} />
               ))}
             </div>
           </section>
         )}
 
-        {/* Completed / unlocked rewards */}
         {completed.length > 0 && (
           <section>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Unlocked Rewards</h2>
             <div className="space-y-3">
               {completed.map(o => (
-                <OutingCard key={o.id} outing={o} onUpdate={refresh} />
+                <OutingCard key={o.id} outing={o} onUpdated={handleUpdated} />
               ))}
             </div>
           </section>
@@ -91,7 +103,7 @@ export default function RewardsClient({ outings, friends, currentUserId }: Props
         onClose={() => setDialogOpen(false)}
         friends={friends}
         currentUserId={currentUserId}
-        onCreated={refresh}
+        onCreated={handleCreated}
       />
     </div>
   )

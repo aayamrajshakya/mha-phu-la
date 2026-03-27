@@ -224,6 +224,42 @@ create policy "Participants can update outings" on outings for update
   using (auth.uid() = creator_id or auth.uid() = partner_id);
 
 -- ========================
+-- FUNCTIONS
+-- ========================
+
+-- Creates a conversation between the caller and a partner (or returns existing one).
+-- Uses security definer to bypass RLS when inserting the partner as a member.
+create or replace function create_conversation(partner_id uuid)
+returns uuid
+language plpgsql
+security definer
+as $$
+declare
+  conv_id uuid;
+begin
+  -- Return existing conversation if one already exists
+  select cm1.conversation_id into conv_id
+  from conversation_members cm1
+  join conversation_members cm2
+    on cm1.conversation_id = cm2.conversation_id
+  where cm1.user_id = auth.uid()
+    and cm2.user_id = partner_id
+  limit 1;
+
+  if conv_id is not null then
+    return conv_id;
+  end if;
+
+  -- Create new conversation and add both members
+  insert into conversations default values returning id into conv_id;
+  insert into conversation_members (conversation_id, user_id) values (conv_id, auth.uid());
+  insert into conversation_members (conversation_id, user_id) values (conv_id, partner_id);
+
+  return conv_id;
+end;
+$$;
+
+-- ========================
 -- REALTIME
 -- ========================
 -- Enable realtime on messages table in Supabase dashboard:

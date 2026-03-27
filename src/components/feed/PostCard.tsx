@@ -34,6 +34,11 @@ export default function PostCard({ post, onLike }: Props) {
                 {mood.emoji} {mood.label}
               </Badge>
             )}
+            {post.is_suggested && (
+              <Badge variant="secondary" className="text-[10px] px-2 py-0 bg-gray-100 text-gray-400 border-0">
+                Suggested
+              </Badge>
+            )}
             {post.distance_km != null && (
               <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
                 <MapPin className="w-2.5 h-2.5" />

@@ -10,15 +10,18 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { getMoodStyle, MOODS } from '@/lib/moods'
-import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2 } from 'lucide-react'
+import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2, Users } from 'lucide-react'
 import { formatDistanceToNow } from '@/lib/time'
+
+type Friend = { id: string; name: string; avatar_url: string | null; mood: string | null }
 
 interface Props {
   profile: User | null
   posts: (Post & { likes_count: number })[]
+  friends: Friend[]
 }
 
-export default function ProfileClient({ profile, posts }: Props) {
+export default function ProfileClient({ profile, posts, friends }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [editing, setEditing] = useState(false)
@@ -54,7 +57,7 @@ export default function ProfileClient({ profile, posts }: Props) {
     if (!file || !profile) return
     setUploading(true)
     const ext = file.name.split('.').pop()
-    const path = `avatars/${profile.id}.${ext}`
+    const path = `${profile.id}/avatar.${ext}`
     const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
     if (!error) {
       const { data } = supabase.storage.from('avatars').getPublicUrl(path)
@@ -203,7 +206,43 @@ export default function ProfileClient({ profile, posts }: Props) {
             <p className="font-bold text-gray-900">{posts.reduce((sum, p) => sum + p.likes_count, 0)}</p>
             <p className="text-xs text-gray-500">Hearts</p>
           </div>
+          <div className="text-center">
+            <p className="font-bold text-gray-900">{friends.length}</p>
+            <p className="text-xs text-gray-500">Friends</p>
+          </div>
         </div>
+      </div>
+
+      {/* Friends */}
+      <div className="mt-2">
+        <p className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
+          <Users className="w-3.5 h-3.5" /> Friends
+        </p>
+        {friends.length === 0 ? (
+          <p className="text-center text-gray-400 text-sm py-6">No friends yet — connect with someone!</p>
+        ) : (
+          <div className="flex flex-col divide-y divide-gray-50">
+            {friends.map(friend => {
+              const friendMood = getMoodStyle(friend.mood)
+              return (
+                <div key={friend.id} className="px-4 py-3 bg-white flex items-center gap-3">
+                  <Avatar className="w-10 h-10 shrink-0">
+                    <AvatarImage src={friend.avatar_url ?? undefined} />
+                    <AvatarFallback className="bg-yellow-100 text-yellow-500 font-bold">
+                      {friend.name?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{friend.name}</p>
+                    {friend.mood && (
+                      <span className="text-xs text-gray-500">{friendMood.emoji} {friendMood.label}</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Posts */}
