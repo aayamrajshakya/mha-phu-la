@@ -1,0 +1,90 @@
+'use client'
+
+import { useState } from 'react'
+import { User } from '@/types'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { Loader2, Image as ImageIcon, Send } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+
+interface Props {
+  currentUser: User
+  onPost: (content: string, imageUrl?: string) => void
+}
+
+export default function CreatePost({ currentUser, onPost }: Props) {
+  const [content, setContent] = useState('')
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const supabase = createClient()
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `posts/${currentUser.id}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('posts').upload(path, file)
+    if (!error) {
+      const { data } = supabase.storage.from('posts').getPublicUrl(path)
+      setImageUrl(data.publicUrl)
+    }
+    setUploading(false)
+  }
+
+  async function handleSubmit() {
+    if (!content.trim()) return
+    setPosting(true)
+    await onPost(content.trim(), imageUrl || undefined)
+    setContent('')
+    setImageUrl('')
+    setPosting(false)
+  }
+
+  return (
+    <div className="px-4 py-3 border-b border-gray-100 bg-white">
+      <div className="flex gap-3">
+        <Avatar className="w-9 h-9 flex-shrink-0">
+          <AvatarImage src={currentUser.avatar_url ?? ''} />
+          <AvatarFallback className="bg-violet-100 text-violet-700 text-sm font-medium">
+            {currentUser.name?.[0]?.toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 flex flex-col gap-2">
+          <Textarea
+            placeholder="Share how you&apos;re feeling or what&apos;s on your mind..."
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            className="resize-none border-0 p-0 shadow-none text-sm focus-visible:ring-0 min-h-[60px]"
+            rows={2}
+          />
+          {imageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={imageUrl} alt="post" className="rounded-xl max-h-40 object-cover w-full" />
+          )}
+          <div className="flex items-center justify-between">
+            <label className="cursor-pointer text-gray-400 hover:text-violet-500 transition-colors">
+              {uploading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <ImageIcon className="w-5 h-5" />
+              )}
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            </label>
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={!content.trim() || posting}
+              className="rounded-full bg-violet-600 hover:bg-violet-700 h-8 px-4 gap-1.5"
+            >
+              {posting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              Post
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
