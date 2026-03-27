@@ -9,31 +9,34 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Get conversation + members
-  const { data: conv } = await supabase
-    .from('conversations')
-    .select(`*, conversation_members(user_id)`)
-    .eq('id', id)
+  // Check membership directly (avoids self-referential RLS issue on the join)
+  const { data: membership } = await supabase
+    .from('conversation_members')
+    .select('user_id')
+    .eq('conversation_id', id)
+    .eq('user_id', user!.id)
     .single()
 
-  if (!conv) return notFound()
+  if (!membership) return notFound()
 
-  const isParticipant = conv.conversation_members.some(
-    (m: { user_id: string }) => m.user_id === user!.id
-  )
-  if (!isParticipant) return notFound()
+  // Fetch all members to find the partner
+  const { data: members } = await supabase
+    .from('conversation_members')
+    .select('user_id')
+    .eq('conversation_id', id)
 
-  const partnerId = conv.conversation_members.find(
-    (m: { user_id: string }) => m.user_id !== user!.id
-  )?.user_id
+  const partnerId = (members ?? []).find(m => m.user_id !== user!.id)?.user_id
+
+  if (!partnerId) return notFound()
 
   const { data: partner } = await supabase
     .from('profiles')
     .select('id, name, avatar_url, mood')
-    .eq('id', partnerId!)
+    .eq('id', partnerId)
     .single()
 
-  // Fetch initial messages
+  if (!partner) return notFound()
+
   const { data: messages } = await supabase
     .from('messages')
     .select('*')
@@ -45,7 +48,7 @@ export default async function ChatPage({ params }: { params: Promise<{ id: strin
     <ChatWindow
       conversationId={id}
       currentUserId={user!.id}
-      partner={partner!}
+      partner={partner}
       initialMessages={messages ?? []}
     />
   )

@@ -14,7 +14,25 @@ export default async function FeedPage() {
     .eq('id', user!.id)
     .single()
 
-  // Fetch feed posts (connections + nearby) with author info and like counts
+  // Fetch accepted connections to determine friend vs suggested posts
+  const { data: sentConnections } = await supabase
+    .from('connections')
+    .select('receiver_id')
+    .eq('requester_id', user!.id)
+    .eq('status', 'accepted')
+
+  const { data: receivedConnections } = await supabase
+    .from('connections')
+    .select('requester_id')
+    .eq('receiver_id', user!.id)
+    .eq('status', 'accepted')
+
+  const connectedUserIds = new Set<string>([
+    ...(sentConnections ?? []).map(c => c.receiver_id),
+    ...(receivedConnections ?? []).map(c => c.requester_id),
+  ])
+
+  // Fetch feed posts with author info and like counts
   const { data: posts } = await supabase
     .from('posts')
     .select(`
@@ -26,11 +44,12 @@ export default async function FeedPage() {
     .order('created_at', { ascending: false })
     .limit(30)
 
-  // Normalize likes
+  // Normalize likes and mark suggested posts
   const normalizedPosts = (posts ?? []).map(p => ({
     ...p,
     likes_count: p.likes?.[0]?.count ?? 0,
     is_liked: (p.my_like ?? []).some((l: { user_id: string }) => l.user_id === user!.id),
+    is_suggested: p.user_id !== user!.id && !connectedUserIds.has(p.user_id),
   }))
 
   return <FeedClient posts={normalizedPosts} currentUser={profile} />

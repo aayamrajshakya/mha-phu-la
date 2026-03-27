@@ -50,5 +50,26 @@ export default async function MessagesPage() {
     }
   }).filter(c => c.other_user !== null)
 
-  return <ConversationList conversations={formattedConvs} currentUserId={user!.id} />
+  // Fetch friends (accepted connections) for new conversation picker
+  const { data: sentConns } = await supabase
+    .from('connections')
+    .select('receiver:profiles!connections_receiver_id_fkey(id, name, avatar_url, mood)')
+    .eq('requester_id', user!.id)
+    .eq('status', 'accepted')
+
+  const { data: receivedConns } = await supabase
+    .from('connections')
+    .select('requester:profiles!connections_requester_id_fkey(id, name, avatar_url, mood)')
+    .eq('receiver_id', user!.id)
+    .eq('status', 'accepted')
+
+  type FriendRow = { id: string; name: string; avatar_url: string | null; mood: string | null }
+  const friends: FriendRow[] = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...(sentConns ?? []).map((c: any) => c.receiver as FriendRow),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ...(receivedConns ?? []).map((c: any) => c.requester as FriendRow),
+  ].filter(Boolean)
+
+  return <ConversationList conversations={formattedConvs} currentUserId={user!.id} friends={friends} />
 }

@@ -35,11 +35,17 @@ function AuthForm() {
         setMessage('Check your email to confirm your account, then log in.')
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         setError(error.message)
       } else {
-        router.push('/onboarding')
+        // Check if profile is already set up
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', data.user.id)
+          .single()
+        router.push(profile?.name ? '/feed' : '/onboarding')
         router.refresh()
       }
     }

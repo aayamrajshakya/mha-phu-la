@@ -69,11 +69,19 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
     const content = input.trim()
     setInput('')
 
-    await supabase.from('messages').insert({
-      conversation_id: conversationId,
-      sender_id: currentUserId,
-      content,
-    })
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({ conversation_id: conversationId, sender_id: currentUserId, content })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Send failed:', error.message)
+      setInput(content) // restore input on failure
+    } else if (data) {
+      // Add immediately — real-time subscription deduplicates if it also fires
+      setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data])
+    }
 
     setSending(false)
   }
