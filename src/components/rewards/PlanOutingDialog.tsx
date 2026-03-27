@@ -1,40 +1,41 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { User } from '@/types'
 import { OUTING_TYPES, OutingType } from '@/lib/rewards'
+import { LocalOuting } from './RewardsClient'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
 
 interface Props {
   open: boolean
   onClose: () => void
   friends: Pick<User, 'id' | 'name' | 'avatar_url'>[]
   currentUserId: string
-  onCreated: () => void
+  onCreated: (outing: LocalOuting) => void
 }
 
 export default function PlanOutingDialog({ open, onClose, friends, currentUserId, onCreated }: Props) {
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<OutingType | null>(null)
-  const [loading, setLoading] = useState(false)
-  const supabase = createClient()
 
-  async function create() {
+  function create() {
     if (!selectedFriend || !selectedType) return
-    setLoading(true)
-    await supabase.from('outings').insert({
-      creator_id: currentUserId,
-      partner_id: selectedFriend,
+    const friend = friends.find(f => f.id === selectedFriend)!
+    const newOuting: LocalOuting = {
+      id: crypto.randomUUID(),
       type: selectedType,
-    })
-    setLoading(false)
+      status: 'pending',
+      is_creator: true,
+      checkin_code: null,
+      checkin_code_expires_at: null,
+      partner: { id: friend.id, name: friend.name, avatar_url: friend.avatar_url ?? null },
+      created_at: new Date().toISOString(),
+    }
     setSelectedFriend(null)
     setSelectedType(null)
-    onCreated()
+    onCreated(newOuting)
     onClose()
   }
 
@@ -98,10 +99,10 @@ export default function PlanOutingDialog({ open, onClose, friends, currentUserId
 
           <Button
             onClick={create}
-            disabled={!selectedFriend || !selectedType || loading}
+            disabled={!selectedFriend || !selectedType}
             className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold rounded-full h-11"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Let's go! 🎉"}
+            {"Let's go! 🎉"}
           </Button>
         </div>
       </DialogContent>
