@@ -8,13 +8,10 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Send, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import { getMoodStyle } from '@/lib/moods'
-
 interface Partner {
   id: string
   name: string
   avatar_url: string | null
-  mood: string | null
 }
 
 interface Props {
@@ -30,7 +27,6 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
   const [sending, setSending] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
-  const mood = getMoodStyle(partner.mood)
 
   // Scroll to bottom
   useEffect(() => {
@@ -108,7 +104,6 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
         </Avatar>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-sm text-gray-900">{partner.name}</p>
-          <p className="text-[10px] text-gray-400">{mood.emoji} {mood.label}</p>
         </div>
       </div>
 

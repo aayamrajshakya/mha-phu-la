@@ -7,9 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { getMoodStyle } from '@/lib/moods'
-import { Search, UserPlus, Check, Clock, X, MapPin } from 'lucide-react'
+import { Search, UserPlus, Check, Clock, X, MapPin, UserMinus } from 'lucide-react'
+import { RADIUS_KEY, DEFAULT_RADIUS } from '@/components/layout/SideDrawer'
 
 function distanceMiles(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 3958.8
@@ -47,7 +46,11 @@ export default function ConnectClient({ currentUser, initialConnections }: Props
   const [emailNotFound, setEmailNotFound] = useState(false)
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([])
   const [nearbyLoaded, setNearbyLoaded] = useState(false)
-  const [radius, setRadius] = useState(5)
+  const [radius, setRadius] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_RADIUS
+    const stored = localStorage.getItem(RADIUS_KEY)
+    return stored ? Number(stored) : DEFAULT_RADIUS
+  })
   const supabase = createClient()
 
   function getStatus(userId: string): 'none' | 'pending_sent' | 'pending_received' | 'accepted' {
@@ -134,9 +137,18 @@ export default function ConnectClient({ currentUser, initialConnections }: Props
     const connId = getConnId(userId)
     if (status === 'accepted') {
       return (
-        <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-          <Check className="w-3.5 h-3.5" /> Friends
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+            <Check className="w-3.5 h-3.5" /> Friends
+          </span>
+          <button
+            onClick={() => declineRequest(connId!)}
+            className="text-gray-300 hover:text-red-500 transition-colors"
+            title="Unfriend"
+          >
+            <UserMinus className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )
     }
     if (status === 'pending_sent') {
@@ -179,7 +191,6 @@ export default function ConnectClient({ currentUser, initialConnections }: Props
   }
 
   function UserCard({ user, distanceMi }: { user: ProfileSnippet | User; distanceMi?: number }) {
-    const mood = user.mood ? getMoodStyle(user.mood) : null
     return (
       <div className="flex items-start gap-3 px-4 py-3 bg-white border-b border-gray-50">
         <Avatar className="w-11 h-11 flex-shrink-0">
@@ -193,11 +204,6 @@ export default function ConnectClient({ currentUser, initialConnections }: Props
             <span className="font-semibold text-sm text-gray-900">{user.name}</span>
             {user.age != null && (
               <span className="text-xs text-gray-400">{user.age}</span>
-            )}
-            {mood && (
-              <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 ${mood.color} border-0`}>
-                {mood.emoji} {mood.label}
-              </Badge>
             )}
           </div>
           {user.bio && (
@@ -284,7 +290,12 @@ export default function ConnectClient({ currentUser, initialConnections }: Props
                   max={50}
                   step={1}
                   value={radius}
-                  onChange={e => { setRadius(Number(e.target.value)); setNearbyLoaded(false) }}
+                  onChange={e => {
+                    const val = Number(e.target.value)
+                    setRadius(val)
+                    localStorage.setItem(RADIUS_KEY, String(val))
+                    setNearbyLoaded(false)
+                  }}
                   className="w-full accent-yellow-400"
                 />
                 <div className="flex justify-between text-[10px] text-gray-400 mt-0.5 mb-3">

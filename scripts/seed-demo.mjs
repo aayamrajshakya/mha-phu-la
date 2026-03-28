@@ -9,6 +9,7 @@ const supabase = createClient(
 const users = [
   { email: 'baucha@mhafula.com', password: 'Boston123!' },
   { email: 'maicha@mhafula.com', password: 'Boston123!' },
+  { email: 'anon@mhafula.com', password: 'Boston123!' },
 ]
 
 for (const user of users) {

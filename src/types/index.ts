@@ -9,6 +9,7 @@ export interface User {
   lat: number | null
   lng: number | null
   mood: string | null
+  gender: string | null
   created_at: string
 }
 
