@@ -62,7 +62,7 @@ function AuthForm() {
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">
-            {mode === 'signup' ? 'Join Mha Fu La?' : 'Welcome back'}
+            {mode === 'signup' ? 'Join Mha Phu La?' : 'Welcome back'}
           </CardTitle>
           <CardDescription>
             {mode === 'signup'

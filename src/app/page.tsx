@@ -9,11 +9,11 @@ export default function LandingPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://stickershop.line-scdn.net/stickershop/v1/sticker/4809283/android/sticker.png?v=1"
-            alt="Mha Fu La? logo"
+            alt="Mha Phu La? logo"
             className="w-28 h-28 object-contain"
           />
         </div>
-        <h1 className="text-4xl font-bold text-gray-900 mb-3">Mha Fu La?</h1>
+        <h1 className="text-4xl font-bold text-gray-900 mb-3">Mha Phu La?</h1>
         <p className="text-lg text-gray-600 mb-2">
           A safe space to connect, share, and heal — together.
         </p>

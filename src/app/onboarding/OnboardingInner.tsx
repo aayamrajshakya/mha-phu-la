@@ -128,7 +128,7 @@ export default function OnboardingInner() {
             <div className="bg-yellow-400 text-gray-900 rounded-xl p-2">
               <Heart className="w-5 h-5" />
             </div>
-            <span className="font-bold text-yellow-500 text-lg">Mha Fu La?</span>
+            <span className="font-bold text-yellow-500 text-lg">Mha Phu La?</span>
           </div>
 
           {step === 'name' && (
