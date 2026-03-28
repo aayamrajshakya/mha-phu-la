@@ -205,7 +205,7 @@ export default function OnboardingInner() {
                       form.gender === g.label ? 'border-yellow-500 bg-yellow-50' : 'border-gray-100 bg-white hover:border-yellow-200'
                     }`}
                   >
-                    <span className={`text-2xl w-8 text-center ${g.symbolClass}`}>{g.symbol}</span>
+                    <span className={`text-3xl w-10 text-center ${g.symbolClass}`}>{g.symbol}</span>
                     <span className="font-medium text-gray-800">{g.label}</span>
                   </button>
                 ))}

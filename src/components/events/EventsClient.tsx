@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { MHEvent, EventCategory } from '@/lib/events'
 import { scoreEvents, UserContext, SupportPrefs, DEFAULT_SUPPORT_PREFS, EventBehavior, ScoredEvent } from '@/lib/recommend'
 import { RADIUS_KEY, DEFAULT_RADIUS, SUPPORT_PREFS_KEY } from '@/components/layout/SideDrawer'
@@ -9,9 +9,11 @@ import {
   vibeCardTagsFromIds, scenarioTagsFromAnswers,
   ReflectionData,
 } from '@/lib/user-prefs'
+import { buildRecommendationExplanationPrompt, parseLLMJson } from '@/lib/llm-prompts'
+import { useWebLLM } from '@/hooks/useWebLLM'
 import IntentionCheckIn from './IntentionCheckIn'
 import ReflectionDialog from './ReflectionDialog'
-import { MapPin, Clock, Users, Calendar, Tag, Bookmark, BookmarkCheck, X, Sparkles, ClipboardList } from 'lucide-react'
+import { MapPin, Clock, Users, Calendar, Tag, Bookmark, BookmarkCheck, X, Sparkles, ClipboardList, Bot, Loader2 } from 'lucide-react'
 
 const INTERESTS_KEY = 'mhafu_interests'
 
@@ -220,6 +222,20 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
   const [reflections, setReflections] = useState<Record<string, ReflectionData>>({})
   const [reflectingOn, setReflectingOn] = useState<MHEvent | null>(null)
 
+  // LLM enhancement state
+  const llm = useWebLLM()
+  const [llmExplanations, setLlmExplanations] = useState<Record<string, string>>({})
+  const [enhancing, setEnhancing] = useState(false)
+  const [showReadyToast, setShowReadyToast] = useState(false)
+
+  useEffect(() => {
+    if (llm.status === 'ready') {
+      setShowReadyToast(true)
+      const t = setTimeout(() => setShowReadyToast(false), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [llm.status])
+
   // Preference signals from localStorage
   const [interests, setInterests] = useState<string[]>([])
   const [supportPrefs, setSupportPrefs] = useState<SupportPrefs>(DEFAULT_SUPPORT_PREFS)
@@ -297,6 +313,52 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
 
   const scored: ScoredEvent[] = useMemo(() => scoreEvents(visibleEvents, ctx), [visibleEvents, ctx])
 
+  const enhanceWithAI = useCallback(async () => {
+    if (llm.status === 'idle') {
+      llm.load()
+      return
+    }
+    if (llm.status !== 'ready' || enhancing) return
+
+    setEnhancing(true)
+    const top5 = scored.slice(0, 5)
+    const results: Record<string, string> = {}
+
+    for (const s of top5) {
+      const prompt = buildRecommendationExplanationPrompt({
+        eventTitle: s.event.title,
+        eventCategory: s.event.category,
+        userInterests: interests,
+        matchedTags: s.event.tags,
+        distanceKm: s.distanceKm ?? null,
+        scoreBreakdown: {
+          interest:  s.breakdown.interest,
+          support:   s.breakdown.support,
+          behavior:  s.breakdown.behavior,
+          location:  s.breakdown.location,
+        },
+      })
+
+      const raw = await llm.run(
+        'You are a warm mental-health app assistant. Return only valid JSON.',
+        prompt,
+        120,
+      )
+      if (raw) {
+        const parsed = parseLLMJson<{ short_reason: string; detail: string | null }>(raw, {
+          short_reason: s.explanation ?? '',
+          detail: null,
+        })
+        results[s.event.id] = parsed.detail
+          ? `${parsed.short_reason} ${parsed.detail}`
+          : parsed.short_reason
+      }
+    }
+
+    setLlmExplanations(prev => ({ ...prev, ...results }))
+    setEnhancing(false)
+  }, [llm, scored, interests, enhancing])
+
   const categories = ['All', ...Array.from(new Set(visibleEvents.map(e => e.category)))]
   const filteredAll = activeCategory === 'All' ? visibleEvents : visibleEvents.filter(e => e.category === activeCategory)
 
@@ -356,6 +418,45 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
             )}
           </div>
 
+          {/* AI enhance bar — hidden when WebGPU isn't available */}
+          {llm.status !== 'unsupported' && llm.status !== 'error' && scored.length > 0 && (
+            <div className="mx-4 mb-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 flex items-center gap-2">
+              {llm.status === 'loading' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 text-yellow-400 animate-spin flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-[10px] text-gray-500">Loading AI model… {Math.round(llm.progress * 100)}%</p>
+                    <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-1 bg-yellow-400 rounded-full transition-all" style={{ width: `${llm.progress * 100}%` }} />
+                    </div>
+                  </div>
+                </>
+              ) : enhancing ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 text-yellow-400 animate-spin flex-shrink-0" />
+                  <p className="text-[10px] text-gray-500">AI is writing explanations…</p>
+                </>
+              ) : (
+                <>
+                  <Bot className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                  <p className="text-[10px] text-gray-500 flex-1">
+                    {llm.status === 'ready'
+                      ? Object.keys(llmExplanations).length > 0
+                        ? 'AI explanations active'
+                        : 'AI model ready'
+                      : 'Enhance top picks with AI explanations'}
+                  </p>
+                  <button
+                    onClick={enhanceWithAI}
+                    className="flex-shrink-0 px-2.5 py-1 rounded-full bg-yellow-400 hover:bg-yellow-500 text-[10px] font-semibold text-gray-900 transition-colors"
+                  >
+                    {llm.status === 'ready' ? 'Enhance' : 'Load AI'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {scored.length === 0 ? (
             <div className="text-center py-16 px-6 text-gray-400">
               <p className="text-3xl mb-3">✨</p>
@@ -368,7 +469,7 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
                 <EventCard
                   key={s.event.id}
                   event={s.event}
-                  explanation={s.explanation}
+                  explanation={llmExplanations[s.event.id] ?? s.explanation}
                   distanceKm={s.distanceKm}
                   score={s.score}
                   behavior={behavior}
@@ -428,6 +529,16 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
           onSaved={handleReflectionSaved}
         />
       )}
+
+      {/* AI ready toast */}
+      <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
+        showReadyToast ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+      }`}>
+        <div className="flex items-center gap-2 bg-gray-900 text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg">
+          <Bot className="w-3.5 h-3.5 text-yellow-400" />
+          AI model loaded — tap Enhance to personalise explanations
+        </div>
+      </div>
     </div>
   )
 }

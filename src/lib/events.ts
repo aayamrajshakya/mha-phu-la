@@ -258,10 +258,10 @@ export function generateEvents(count = 20, seed = 42): MHEvent[] {
       spotsLeft,
       tags: template.tags,
       durationMin: randomItem(DURATIONS),
-      groupSize: capacity <= 15 ? 'small' : 'large',
-      vibe: isActive ? 'active' : 'quiet',
-      format: isVirtual ? 'virtual' : 'offline',
-      dayType: dow === 0 || dow === 6 ? 'weekend' : 'weekday',
+      groupSize: (capacity <= 15 ? 'small' : 'large') as GroupSize,
+      vibe: (isActive ? 'active' : 'quiet') as 'active' | 'quiet',
+      format: (isVirtual ? 'virtual' : 'offline') as 'virtual' | 'offline',
+      dayType: (dow === 0 || dow === 6 ? 'weekend' : 'weekday') as 'weekend' | 'weekday',
       ...(template.sensitiveCategory ? { sensitiveCategory: template.sensitiveCategory } : {}),
     }
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())

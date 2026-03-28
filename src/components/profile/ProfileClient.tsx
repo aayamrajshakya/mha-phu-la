@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { User, Post } from '@/types'
@@ -8,9 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { getMoodStyle, MOODS } from '@/lib/moods'
-import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2, Users, UserMinus } from 'lucide-react'
+import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2, Users, UserMinus, ZoomIn, ZoomOut } from 'lucide-react'
 import { formatDistanceToNow } from '@/lib/time'
 
 type Friend = { id: string; name: string; avatar_url: string | null; mood: string | null; connection_id: string }
@@ -21,6 +19,181 @@ interface Props {
   friends: Friend[]
 }
 
+// ---------------------------------------------------------------------------
+// Crop modal
+// ---------------------------------------------------------------------------
+function CropModal({
+  src,
+  onConfirm,
+  onCancel,
+}: {
+  src: string
+  onConfirm: (blob: Blob) => void
+  onCancel: () => void
+}) {
+  const containerSize = 280
+  const [scale, setScale] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [imgSize, setImgSize] = useState({ w: 0, h: 0 })
+  const dragging = useRef(false)
+  const last = useRef({ x: 0, y: 0 })
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  useEffect(() => {
+    const img = new Image()
+    img.onload = () => {
+      const fit = Math.max(containerSize / img.width, containerSize / img.height)
+      setScale(fit)
+      setImgSize({ w: img.width, h: img.height })
+      setOffset({ x: 0, y: 0 })
+    }
+    img.src = src
+  }, [src])
+
+  const clampOffset = useCallback((ox: number, oy: number, sc: number) => {
+    const displayW = imgSize.w * sc
+    const displayH = imgSize.h * sc
+    const maxX = Math.max(0, (displayW - containerSize) / 2)
+    const maxY = Math.max(0, (displayH - containerSize) / 2)
+    return {
+      x: Math.max(-maxX, Math.min(maxX, ox)),
+      y: Math.max(-maxY, Math.min(maxY, oy)),
+    }
+  }, [imgSize, containerSize])
+
+  function onPointerDown(e: React.PointerEvent) {
+    dragging.current = true
+    last.current = { x: e.clientX, y: e.clientY }
+    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!dragging.current) return
+    const dx = e.clientX - last.current.x
+    const dy = e.clientY - last.current.y
+    last.current = { x: e.clientX, y: e.clientY }
+    setOffset(prev => clampOffset(prev.x + dx, prev.y + dy, scale))
+  }
+
+  function onPointerUp() { dragging.current = false }
+
+  function changeScale(delta: number) {
+    setScale(prev => {
+      const minFit = Math.max(containerSize / imgSize.w, containerSize / imgSize.h)
+      const next = Math.max(minFit, Math.min(4, prev + delta))
+      setOffset(o => clampOffset(o.x, o.y, next))
+      return next
+    })
+  }
+
+  function handleConfirm() {
+    const outputSize = 400
+    const canvas = document.createElement('canvas')
+    canvas.width = outputSize
+    canvas.height = outputSize
+    const ctx = canvas.getContext('2d')!
+    const img = imgRef.current!
+
+    // scale factor from display coords → natural image coords
+    const displayW = imgSize.w * scale
+    const displayH = imgSize.h * scale
+    // top-left of image in container coords
+    const imgLeft = (containerSize / 2) + offset.x - displayW / 2
+    const imgTop  = (containerSize / 2) + offset.y - displayH / 2
+    // crop box in container coords (centered square)
+    const cropLeft = 0
+    const cropTop  = 0
+    // map to source image coords
+    const srcX = (cropLeft - imgLeft) / scale
+    const srcY = (cropTop  - imgTop)  / scale
+    const srcSize = containerSize / scale
+
+    // circular clip
+    ctx.beginPath()
+    ctx.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, Math.PI * 2)
+    ctx.clip()
+    ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, outputSize, outputSize)
+
+    canvas.toBlob(blob => { if (blob) onConfirm(blob) }, 'image/jpeg', 0.9)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div className="bg-white rounded-2xl shadow-xl w-80 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-900">Crop photo</p>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Crop viewport */}
+        <div className="flex items-center justify-center py-4 bg-gray-900">
+          <div
+            className="relative overflow-hidden rounded-full cursor-grab active:cursor-grabbing"
+            style={{ width: containerSize, height: containerSize }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imgRef}
+              src={src}
+              alt="crop preview"
+              draggable={false}
+              style={{
+                width: imgSize.w * scale,
+                height: imgSize.h * scale,
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+                userSelect: 'none',
+              }}
+            />
+            {/* circle border overlay */}
+            <div className="absolute inset-0 rounded-full ring-2 ring-white/60 pointer-events-none" />
+          </div>
+        </div>
+
+        {/* Zoom controls */}
+        <div className="flex items-center gap-3 px-4 py-2 border-t border-gray-100">
+          <button onClick={() => changeScale(-0.1)} className="text-gray-400 hover:text-gray-700">
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <input
+            type="range"
+            min={50} max={400} step={5}
+            value={Math.round(scale * 100)}
+            onChange={e => {
+              const next = Number(e.target.value) / 100
+              setScale(next)
+              setOffset(o => clampOffset(o.x, o.y, next))
+            }}
+            className="flex-1 accent-yellow-400"
+          />
+          <button onClick={() => changeScale(0.1)} className="text-gray-400 hover:text-gray-700">
+            <ZoomIn className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="text-center text-[10px] text-gray-400 pb-1">Drag to reposition</p>
+
+        <div className="flex gap-2 px-4 pb-4">
+          <button onClick={onCancel} className="flex-1 py-2 rounded-full border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">
+            Cancel
+          </button>
+          <button onClick={handleConfirm} className="flex-1 py-2 rounded-full bg-yellow-400 hover:bg-yellow-500 text-sm font-semibold text-gray-900">
+            Use photo
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 export default function ProfileClient({ profile, posts, friends: initialFriends }: Props) {
   const router = useRouter()
   const supabase = createClient()
@@ -34,16 +207,17 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
   })
 
   const GENDERS = [
-    { label: 'Male', symbol: '♂', symbolClass: 'text-blue-500' },
+    { label: 'Male',   symbol: '♂', symbolClass: 'text-blue-500' },
     { label: 'Female', symbol: '♀', symbolClass: 'text-pink-500' },
-    { label: 'Other', symbol: '⚧', symbolClass: 'bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent' },
+    { label: 'Other',  symbol: '⚧', symbolClass: 'bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent' },
   ]
+
   const [friends, setFriends] = useState(initialFriends)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? '')
-
-  const mood = getMoodStyle(profile?.mood ?? null)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
 
   async function handleSave() {
     if (!profile) return
@@ -61,16 +235,31 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
     router.refresh()
   }
 
-  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (!file || !profile) return
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setCropSrc(ev.target?.result as string)
+    reader.readAsDataURL(file)
+    // reset so same file can be re-selected
+    e.target.value = ''
+  }
+
+  async function handleCropConfirm(blob: Blob) {
+    if (!profile) return
+    setCropSrc(null)
     setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `${profile.id}/avatar.${ext}`
-    const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-    if (!error) {
+    setUploadError(null)
+    const path = `${profile.id}/avatar.jpg`
+    const { error } = await supabase.storage
+      .from('avatars')
+      .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+    if (error) {
+      setUploadError(error.message)
+    } else {
       const { data } = supabase.storage.from('avatars').getPublicUrl(path)
-      setAvatarUrl(data.publicUrl)
+      // cache-bust so browser doesn't serve the old image
+      setAvatarUrl(`${data.publicUrl}?t=${Date.now()}`)
     }
     setUploading(false)
   }
@@ -96,6 +285,14 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
 
   return (
     <div className="flex flex-col">
+      {cropSrc && (
+        <CropModal
+          src={cropSrc}
+          onConfirm={handleCropConfirm}
+          onCancel={() => setCropSrc(null)}
+        />
+      )}
+
       {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
         <h1 className="text-xl font-bold text-gray-900">Profile</h1>
@@ -140,7 +337,7 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
                 ) : (
                   <Camera className="w-5 h-5 text-white" />
                 )}
-                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
               </label>
             )}
           </div>
@@ -162,8 +359,8 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
               {profile.gender && (() => {
                 const g = GENDERS.find(x => x.label === profile.gender)
                 return g ? (
-                  <span className="flex items-center gap-0.5 text-sm text-gray-500">
-                    <span className={g.symbolClass}>{g.symbol}</span> {g.label}
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <span className={`text-lg leading-none ${g.symbolClass}`}>{g.symbol}</span> {g.label}
                   </span>
                 ) : null
               })()}
@@ -175,6 +372,9 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
               )}
             </div>
 
+            {uploadError && (
+              <p className="text-xs text-red-500 mt-1">{uploadError}</p>
+            )}
           </div>
         </div>
 
@@ -193,7 +393,7 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
                       : 'border-gray-100 bg-white text-gray-500 hover:border-yellow-200'
                   }`}
                 >
-                  <span className={g.symbolClass}>{g.symbol}</span> {g.label}
+                  <span className={`text-lg leading-none ${g.symbolClass}`}>{g.symbol}</span> {g.label}
                 </button>
               ))}
             </div>
