@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Mha Fu La? — Mental Health Community",
+  title: "Mha Phu La? — Mental Health Community",
   description: "Connect, share, and support each other on your mental health journey",
 };
 
