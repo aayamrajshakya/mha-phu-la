@@ -5,8 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { User, Post } from '@/types'
 import PostCard from './PostCard'
 import CreatePost from './CreatePost'
-import { getMoodStyle } from '@/lib/moods'
-
 interface Props {
   posts: Post[]
   currentUser: User | null
@@ -16,8 +14,6 @@ export default function FeedClient({ posts: initialPosts, currentUser }: Props) 
   const [posts, setPosts] = useState(initialPosts)
   const supabase = createClient()
 
-  const mood = getMoodStyle(currentUser?.mood ?? null)
-
   async function handleNewPost(content: string, imageUrl?: string) {
     if (!currentUser) return
     const { data, error } = await supabase
@@ -26,7 +22,6 @@ export default function FeedClient({ posts: initialPosts, currentUser }: Props) 
         user_id: currentUser.id,
         content,
         image_url: imageUrl ?? null,
-        mood_tag: currentUser.mood,
       })
       .select(`*, user:profiles!posts_user_id_fkey(id, name, avatar_url)`)
       .single()
@@ -57,11 +52,6 @@ export default function FeedClient({ posts: initialPosts, currentUser }: Props) 
       <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 z-10">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Feed</h1>
-          {currentUser?.mood && (
-            <span className={`text-xs font-medium px-3 py-1 rounded-full ${mood.color}`}>
-              {mood.emoji} {mood.label}
-            </span>
-          )}
         </div>
       </div>
 

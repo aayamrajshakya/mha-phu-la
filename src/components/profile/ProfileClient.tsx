@@ -10,10 +10,10 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { getMoodStyle, MOODS } from '@/lib/moods'
-import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2, Users } from 'lucide-react'
+import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2, Users, UserMinus } from 'lucide-react'
 import { formatDistanceToNow } from '@/lib/time'
 
-type Friend = { id: string; name: string; avatar_url: string | null; mood: string | null }
+type Friend = { id: string; name: string; avatar_url: string | null; mood: string | null; connection_id: string }
 
 interface Props {
   profile: User | null
@@ -21,7 +21,7 @@ interface Props {
   friends: Friend[]
 }
 
-export default function ProfileClient({ profile, posts, friends }: Props) {
+export default function ProfileClient({ profile, posts, friends: initialFriends }: Props) {
   const router = useRouter()
   const supabase = createClient()
   const [editing, setEditing] = useState(false)
@@ -30,7 +30,15 @@ export default function ProfileClient({ profile, posts, friends }: Props) {
     bio: profile?.bio ?? '',
     mood: profile?.mood ?? '',
     age: String(profile?.age ?? ''),
+    gender: profile?.gender ?? '',
   })
+
+  const GENDERS = [
+    { label: 'Male', symbol: '♂', symbolClass: 'text-blue-500' },
+    { label: 'Female', symbol: '♀', symbolClass: 'text-pink-500' },
+    { label: 'Other', symbol: '⚧', symbolClass: 'bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent' },
+  ]
+  const [friends, setFriends] = useState(initialFriends)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? '')
@@ -45,6 +53,7 @@ export default function ProfileClient({ profile, posts, friends }: Props) {
       bio: form.bio,
       mood: form.mood,
       age: Number(form.age),
+      gender: form.gender,
       avatar_url: avatarUrl,
     }).eq('id', profile.id)
     setSaving(false)
@@ -64,6 +73,11 @@ export default function ProfileClient({ profile, posts, friends }: Props) {
       setAvatarUrl(data.publicUrl)
     }
     setUploading(false)
+  }
+
+  async function handleUnfriend(connectionId: string) {
+    await supabase.from('connections').delete().eq('id', connectionId)
+    setFriends(prev => prev.filter(f => f.connection_id !== connectionId))
   }
 
   async function handleSignOut() {
@@ -145,6 +159,14 @@ export default function ProfileClient({ profile, posts, friends }: Props) {
 
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="text-sm text-gray-500">{profile.age} years old</span>
+              {profile.gender && (() => {
+                const g = GENDERS.find(x => x.label === profile.gender)
+                return g ? (
+                  <span className="flex items-center gap-0.5 text-sm text-gray-500">
+                    <span className={g.symbolClass}>{g.symbol}</span> {g.label}
+                  </span>
+                ) : null
+              })()}
               {profile.address && (
                 <span className="flex items-center gap-0.5 text-xs text-gray-400">
                   <MapPin className="w-3 h-3" />
@@ -153,28 +175,25 @@ export default function ProfileClient({ profile, posts, friends }: Props) {
               )}
             </div>
 
-            {!editing && (
-              <Badge className={`mt-2 text-xs ${mood.color} border-0`}>
-                {mood.emoji} {mood.label}
-              </Badge>
-            )}
           </div>
         </div>
 
-        {/* Mood picker (edit mode) */}
+        {/* Gender picker (edit mode) */}
         {editing && (
           <div className="mt-4">
-            <p className="text-xs text-gray-500 font-medium mb-2">How are you feeling?</p>
-            <div className="flex gap-2 flex-wrap">
-              {MOODS.map(m => (
+            <p className="text-xs text-gray-400 mb-2">Gender</p>
+            <div className="flex gap-2">
+              {GENDERS.map(g => (
                 <button
-                  key={m.label}
-                  onClick={() => setForm(f => ({ ...f, mood: m.label }))}
-                  className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-full border transition-all ${
-                    form.mood === m.label ? 'border-yellow-500 bg-yellow-50' : 'border-gray-200 bg-white'
+                  key={g.label}
+                  onClick={() => setForm(f => ({ ...f, gender: g.label }))}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
+                    form.gender === g.label
+                      ? 'border-yellow-400 bg-yellow-50 text-gray-900'
+                      : 'border-gray-100 bg-white text-gray-500 hover:border-yellow-200'
                   }`}
                 >
-                  {m.emoji} {m.label}
+                  <span className={g.symbolClass}>{g.symbol}</span> {g.label}
                 </button>
               ))}
             </div>
@@ -222,25 +241,23 @@ export default function ProfileClient({ profile, posts, friends }: Props) {
           <p className="text-center text-gray-400 text-sm py-6">No friends yet — connect with someone!</p>
         ) : (
           <div className="flex flex-col divide-y divide-gray-50">
-            {friends.map(friend => {
-              const friendMood = getMoodStyle(friend.mood)
-              return (
-                <div key={friend.id} className="px-4 py-3 bg-white flex items-center gap-3">
-                  <Avatar className="w-10 h-10 shrink-0">
-                    <AvatarImage src={friend.avatar_url ?? undefined} />
-                    <AvatarFallback className="bg-yellow-100 text-yellow-500 font-bold">
-                      {friend.name?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{friend.name}</p>
-                    {friend.mood && (
-                      <span className="text-xs text-gray-500">{friendMood.emoji} {friendMood.label}</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+            {friends.map(friend => (
+              <div key={friend.id} className="px-4 py-3 bg-white flex items-center gap-3">
+                <Avatar className="w-10 h-10 shrink-0">
+                  <AvatarImage src={friend.avatar_url ?? undefined} />
+                  <AvatarFallback className="bg-yellow-100 text-yellow-500 font-bold">
+                    {friend.name?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <p className="text-sm font-semibold text-gray-900 truncate flex-1">{friend.name}</p>
+                <button
+                  onClick={() => handleUnfriend(friend.connection_id)}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                >
+                  <UserMinus className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -24,20 +24,20 @@ export default async function ProfilePage() {
   const [{ data: sentConns }, { data: receivedConns }] = await Promise.all([
     supabase
       .from('connections')
-      .select('receiver:profiles!connections_receiver_id_fkey(id, name, avatar_url, mood)')
+      .select('id, receiver:profiles!connections_receiver_id_fkey(id, name, avatar_url, mood)')
       .eq('requester_id', user.id)
       .eq('status', 'accepted'),
     supabase
       .from('connections')
-      .select('requester:profiles!connections_requester_id_fkey(id, name, avatar_url, mood)')
+      .select('id, requester:profiles!connections_requester_id_fkey(id, name, avatar_url, mood)')
       .eq('receiver_id', user.id)
       .eq('status', 'accepted'),
   ])
 
   const friends = [
-    ...((sentConns ?? []).map((c: { receiver: unknown }) => c.receiver)),
-    ...((receivedConns ?? []).map((c: { requester: unknown }) => c.requester)),
-  ] as { id: string; name: string; avatar_url: string | null; mood: string | null }[]
+    ...((sentConns ?? []).map((c: { id: string; receiver: unknown }) => ({ ...(c.receiver as object), connection_id: c.id }))),
+    ...((receivedConns ?? []).map((c: { id: string; requester: unknown }) => ({ ...(c.requester as object), connection_id: c.id }))),
+  ] as { id: string; name: string; avatar_url: string | null; mood: string | null; connection_id: string }[]
 
   return (
     <ProfileClient

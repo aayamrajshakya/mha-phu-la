@@ -6,10 +6,15 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { MOODS } from '@/lib/moods'
 import { Heart, MapPin, Camera, ChevronRight, Loader2 } from 'lucide-react'
 
-const STEPS = ['name', 'age', 'bio', 'mood', 'location', 'photo'] as const
+const STEPS = ['name', 'age', 'gender', 'bio', 'location', 'photo'] as const
+
+const GENDERS = [
+  { label: 'Male', symbol: '♂', symbolClass: 'text-blue-500' },
+  { label: 'Female', symbol: '♀', symbolClass: 'text-pink-500' },
+  { label: 'Other', symbol: '⚧', symbolClass: 'bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent' },
+]
 type Step = typeof STEPS[number]
 
 export default function OnboardingInner() {
@@ -20,8 +25,8 @@ export default function OnboardingInner() {
   const [form, setForm] = useState({
     name: '',
     age: '',
+    gender: '',
     bio: '',
-    mood: '',
     address: '',
     lat: null as number | null,
     lng: null as number | null,
@@ -43,8 +48,8 @@ export default function OnboardingInner() {
   function canProceed() {
     if (step === 'name') return form.name.trim().length >= 2
     if (step === 'age') return Number(form.age) >= 13 && Number(form.age) <= 100
+    if (step === 'gender') return form.gender !== ''
     if (step === 'bio') return form.bio.trim().length >= 10
-    if (step === 'mood') return form.mood !== ''
     return true
   }
 
@@ -95,8 +100,8 @@ export default function OnboardingInner() {
       email: user.email,
       name: form.name,
       age: Number(form.age),
+      gender: form.gender,
       bio: form.bio,
-      mood: form.mood,
       address: form.address,
       lat: form.lat,
       lng: form.lng,
@@ -157,6 +162,29 @@ export default function OnboardingInner() {
             </div>
           )}
 
+          {step === 'gender' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">What&apos;s your gender?</h2>
+              <p className="text-gray-500 mb-6 text-sm">Select the option that best describes you</p>
+              <div className="flex flex-col gap-3">
+                {GENDERS.map(g => (
+                  <button
+                    key={g.label}
+                    onClick={() => setForm(f => ({ ...f, gender: g.label }))}
+                    className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${
+                      form.gender === g.label
+                        ? 'border-yellow-500 bg-yellow-50'
+                        : 'border-gray-100 bg-white hover:border-yellow-200'
+                    }`}
+                  >
+                    <span className={`text-2xl w-8 text-center ${g.symbolClass}`}>{g.symbol}</span>
+                    <span className="font-medium text-gray-800">{g.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {step === 'bio' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Tell us about yourself</h2>
@@ -169,29 +197,6 @@ export default function OnboardingInner() {
                 rows={4}
                 autoFocus
               />
-            </div>
-          )}
-
-          {step === 'mood' && (
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">How are you feeling today?</h2>
-              <p className="text-gray-500 mb-6 text-sm">This shows on your profile and can be updated anytime</p>
-              <div className="flex flex-col gap-3">
-                {MOODS.map(m => (
-                  <button
-                    key={m.label}
-                    onClick={() => setForm(f => ({ ...f, mood: m.label }))}
-                    className={`flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all ${
-                      form.mood === m.label
-                        ? 'border-yellow-500 bg-yellow-50'
-                        : 'border-gray-100 bg-white hover:border-yellow-200'
-                    }`}
-                  >
-                    <span className="text-2xl">{m.emoji}</span>
-                    <span className="font-medium text-gray-800">{m.label}</span>
-                  </button>
-                ))}
-              </div>
             </div>
           )}
 

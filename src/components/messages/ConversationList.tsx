@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Conversation } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { getMoodStyle } from '@/lib/moods'
 import { formatDistanceToNow } from '@/lib/time'
 import { MessageCircle, SquarePen, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -79,28 +78,22 @@ export default function ConversationList({ conversations, currentUserId, friends
               <p className="text-xs text-red-500 px-4 py-2 bg-red-50">{startError}</p>
             )}
             <div className="divide-y divide-gray-50">
-              {friends.map(friend => {
-                const mood = getMoodStyle(friend.mood ?? null)
-                return (
-                  <button
-                    key={friend.id}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                    disabled={starting === friend.id}
-                    onClick={() => openOrCreateConversation(friend.id)}
-                  >
-                    <div className="relative">
-                      <Avatar className="w-11 h-11">
-                        <AvatarImage src={friend.avatar_url ?? ''} />
-                        <AvatarFallback className="bg-yellow-100 text-yellow-500 font-medium">
-                          {friend.name?.[0]?.toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="absolute -bottom-0.5 -right-0.5 text-xs">{mood.emoji}</span>
-                    </div>
-                    <span className="font-medium text-sm text-gray-900">{friend.name}</span>
-                  </button>
-                )
-              })}
+              {friends.map(friend => (
+                <button
+                  key={friend.id}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  disabled={starting === friend.id}
+                  onClick={() => openOrCreateConversation(friend.id)}
+                >
+                  <Avatar className="w-11 h-11">
+                    <AvatarImage src={friend.avatar_url ?? ''} />
+                    <AvatarFallback className="bg-yellow-100 text-yellow-500 font-medium">
+                      {friend.name?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium text-sm text-gray-900">{friend.name}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -118,25 +111,18 @@ export default function ConversationList({ conversations, currentUserId, friends
         </div>
       ) : (
         <div className="divide-y divide-gray-50">
-          {conversations.map(conv => {
-            const mood = getMoodStyle(conv.other_user?.mood ?? null)
-            return (
+          {conversations.map(conv => (
               <Link
                 key={conv.id}
                 href={`/messages/${conv.id}`}
                 className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors"
               >
-                <div className="relative">
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage src={conv.other_user?.avatar_url ?? ''} />
-                    <AvatarFallback className="bg-yellow-100 text-yellow-500 font-medium">
-                      {conv.other_user?.name?.[0]?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="absolute -bottom-0.5 -right-0.5 text-xs">
-                    {mood.emoji}
-                  </span>
-                </div>
+                <Avatar className="w-12 h-12">
+                  <AvatarImage src={conv.other_user?.avatar_url ?? ''} />
+                  <AvatarFallback className="bg-yellow-100 text-yellow-500 font-medium">
+                    {conv.other_user?.name?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
@@ -160,8 +146,7 @@ export default function ConversationList({ conversations, currentUserId, friends
                   </span>
                 )}
               </Link>
-            )
-          })}
+          ))}
         </div>
       )}
     </div>

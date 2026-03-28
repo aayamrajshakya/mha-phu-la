@@ -4,7 +4,6 @@ import { Post } from '@/types'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Heart, MessageCircle, MapPin } from 'lucide-react'
-import { getMoodStyle } from '@/lib/moods'
 import { formatDistanceToNow } from '@/lib/time'
 
 interface Props {
@@ -14,8 +13,6 @@ interface Props {
 }
 
 export default function PostCard({ post, onLike }: Props) {
-  const mood = post.mood_tag ? getMoodStyle(post.mood_tag) : null
-
   return (
     <div className="px-4 py-4 bg-white hover:bg-gray-50/50 transition-colors">
       <div className="flex gap-3">
@@ -29,11 +26,6 @@ export default function PostCard({ post, onLike }: Props) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-gray-900 text-sm">{post.user?.name}</span>
-            {mood && (
-              <Badge variant="secondary" className={`text-[10px] px-2 py-0 ${mood.color} border-0`}>
-                {mood.emoji} {mood.label}
-              </Badge>
-            )}
             {post.is_suggested && (
               <Badge variant="secondary" className="text-[10px] px-2 py-0 bg-gray-100 text-gray-400 border-0">
                 Suggested
