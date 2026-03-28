@@ -6,16 +6,20 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Heart, MapPin, Camera, ChevronRight, Loader2 } from 'lucide-react'
+import { Heart, MapPin, Camera, ChevronRight, Loader2, Check } from 'lucide-react'
+import {
+  VIBE_CARDS, SCENARIO_QUESTIONS,
+  KEYS, writeLS,
+} from '@/lib/user-prefs'
 
-const STEPS = ['name', 'age', 'gender', 'bio', 'location', 'photo'] as const
+const STEPS = ['name', 'age', 'gender', 'bio', 'vibe_cards', 'scenarios', 'location', 'photo'] as const
+type Step = typeof STEPS[number]
 
 const GENDERS = [
   { label: 'Male', symbol: '♂', symbolClass: 'text-blue-500' },
   { label: 'Female', symbol: '♀', symbolClass: 'text-pink-500' },
   { label: 'Other', symbol: '⚧', symbolClass: 'bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent' },
 ]
-type Step = typeof STEPS[number]
 
 export default function OnboardingInner() {
   const router = useRouter()
@@ -23,15 +27,13 @@ export default function OnboardingInner() {
 
   const [step, setStep] = useState<Step>('name')
   const [form, setForm] = useState({
-    name: '',
-    age: '',
-    gender: '',
-    bio: '',
-    address: '',
-    lat: null as number | null,
-    lng: null as number | null,
+    name: '', age: '', gender: '', bio: '',
+    address: '', lat: null as number | null, lng: null as number | null,
     avatar_url: '',
   })
+  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
+  const [scenarioAnswers, setScenarioAnswers] = useState<Record<string, string>>({})
+  const [currentScenario, setCurrentScenario] = useState(0)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -50,7 +52,28 @@ export default function OnboardingInner() {
     if (step === 'age') return Number(form.age) >= 13 && Number(form.age) <= 100
     if (step === 'gender') return form.gender !== ''
     if (step === 'bio') return form.bio.trim().length >= 10
+    if (step === 'scenarios') return currentScenario >= SCENARIO_QUESTIONS.length
     return true
+  }
+
+  function toggleCard(id: string) {
+    setSelectedCards(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      return next
+    })
+  }
+
+  function answerScenario(answerId: string) {
+    const q = SCENARIO_QUESTIONS[currentScenario]
+    if (!q) return
+    setScenarioAnswers(prev => ({ ...prev, [q.id]: answerId }))
+    // Auto-advance to next question or mark done
+    if (currentScenario < SCENARIO_QUESTIONS.length - 1) {
+      setCurrentScenario(i => i + 1)
+    } else {
+      setCurrentScenario(SCENARIO_QUESTIONS.length) // signals completion
+    }
   }
 
   async function detectLocation() {
@@ -95,6 +118,7 @@ export default function OnboardingInner() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth'); return }
 
+    // Save profile to Supabase (no preference data — stays client-side)
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       email: user.email,
@@ -109,17 +133,22 @@ export default function OnboardingInner() {
     })
 
     if (error) { setError(error.message); setLoading(false); return }
+
+    // Persist preference data to localStorage (private, client-only)
+    writeLS(KEYS.vibeCards, [...selectedCards])
+    writeLS(KEYS.scenarioPrefs, scenarioAnswers)
+
     router.push('/feed')
     router.refresh()
   }
 
+  const currentQ = SCENARIO_QUESTIONS[currentScenario]
+  const allScenariosAnswered = currentScenario >= SCENARIO_QUESTIONS.length
+
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-yellow-50 to-amber-50">
       <div className="h-1 bg-gray-200">
-        <div
-          className="h-1 bg-yellow-500 transition-all duration-500"
-          style={{ width: `${progress}%` }}
-        />
+        <div className="h-1 bg-yellow-500 transition-all duration-500" style={{ width: `${progress}%` }} />
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
@@ -131,6 +160,7 @@ export default function OnboardingInner() {
             <span className="font-bold text-yellow-500 text-lg">Mha Phu La?</span>
           </div>
 
+          {/* ── name ── */}
           {step === 'name' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">What&apos;s your name?</h2>
@@ -145,6 +175,7 @@ export default function OnboardingInner() {
             </div>
           )}
 
+          {/* ── age ── */}
           {step === 'age' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">How old are you?</h2>
@@ -155,13 +186,12 @@ export default function OnboardingInner() {
                 value={form.age}
                 onChange={e => setForm(f => ({ ...f, age: e.target.value }))}
                 className="h-12 rounded-xl text-base"
-                autoFocus
-                min={13}
-                max={100}
+                autoFocus min={13} max={100}
               />
             </div>
           )}
 
+          {/* ── gender ── */}
           {step === 'gender' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">What&apos;s your gender?</h2>
@@ -172,9 +202,7 @@ export default function OnboardingInner() {
                     key={g.label}
                     onClick={() => setForm(f => ({ ...f, gender: g.label }))}
                     className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${
-                      form.gender === g.label
-                        ? 'border-yellow-500 bg-yellow-50'
-                        : 'border-gray-100 bg-white hover:border-yellow-200'
+                      form.gender === g.label ? 'border-yellow-500 bg-yellow-50' : 'border-gray-100 bg-white hover:border-yellow-200'
                     }`}
                   >
                     <span className={`text-2xl w-8 text-center ${g.symbolClass}`}>{g.symbol}</span>
@@ -185,21 +213,94 @@ export default function OnboardingInner() {
             </div>
           )}
 
+          {/* ── bio ── */}
           {step === 'bio' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Tell us about yourself</h2>
               <p className="text-gray-500 mb-6 text-sm">Share a bit about your journey (min 10 characters)</p>
               <Textarea
-                placeholder="What&apos;s been on your mind lately? What brings you here?"
+                placeholder="What's been on your mind lately? What brings you here?"
                 value={form.bio}
                 onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
                 className="rounded-xl text-base resize-none"
-                rows={4}
-                autoFocus
+                rows={4} autoFocus
               />
             </div>
           )}
 
+          {/* ── vibe cards ── */}
+          {step === 'vibe_cards' && (
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-1">What resonates with you?</h2>
+              <p className="text-gray-500 mb-2 text-sm">Pick as many as feel right — used privately to personalise your events</p>
+              <p className="text-[10px] text-gray-400 mb-5">Private · never shown to other users</p>
+              <div className="flex flex-col gap-2.5">
+                {VIBE_CARDS.map(card => {
+                  const active = selectedCards.has(card.id)
+                  return (
+                    <button
+                      key={card.id}
+                      onClick={() => toggleCard(card.id)}
+                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all ${
+                        active ? 'border-yellow-400 bg-yellow-50' : 'border-gray-100 bg-white hover:border-yellow-200'
+                      }`}
+                    >
+                      <span className="text-xl flex-shrink-0">{card.emoji}</span>
+                      <span className="text-sm font-medium text-gray-800 flex-1">{card.label}</span>
+                      {active && <Check className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── scenarios ── */}
+          {step === 'scenarios' && (
+            <div>
+              {!allScenariosAnswered && currentQ ? (
+                <>
+                  <div className="flex gap-1 mb-6">
+                    {SCENARIO_QUESTIONS.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`flex-1 h-1 rounded-full transition-all ${
+                          i < currentScenario ? 'bg-yellow-400' : i === currentScenario ? 'bg-yellow-300' : 'bg-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-5">{currentQ.question}</h2>
+                  <div className="flex flex-col gap-2.5">
+                    {currentQ.options.map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => answerScenario(opt.id)}
+                        className={`p-4 rounded-2xl border-2 text-left text-sm font-medium transition-all ${
+                          scenarioAnswers[currentQ.id] === opt.id
+                            ? 'border-yellow-400 bg-yellow-50 text-gray-900'
+                            : 'border-gray-100 bg-white text-gray-700 hover:border-yellow-200'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-4 text-center">Private · used only for event recommendations</p>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl">✨</span>
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">All set!</h2>
+                  <p className="text-sm text-gray-500">Your preferences are saved privately and will personalise your event feed.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── location ── */}
           {step === 'location' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Where are you?</h2>
@@ -208,7 +309,7 @@ export default function OnboardingInner() {
                 <Button
                   onClick={detectLocation}
                   disabled={loading}
-                  className="h-12 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-gray-900 gap-2"
+                  className="h-12 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-gray-900 gap-2"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
                   Detect my location
@@ -223,6 +324,7 @@ export default function OnboardingInner() {
             </div>
           )}
 
+          {/* ── photo ── */}
           {step === 'photo' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Add a profile photo</h2>
@@ -251,20 +353,32 @@ export default function OnboardingInner() {
               <Button onClick={next} variant="outline" className="w-full h-12 rounded-full">
                 Skip for now
               </Button>
-            ) : (
+            ) : step === 'vibe_cards' ? (
+              <Button
+                onClick={next}
+                className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
+              >
+                {selectedCards.size > 0 ? `Continue with ${selectedCards.size} selected` : 'Skip for now'}
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            ) : step === 'scenarios' && allScenariosAnswered ? (
+              <Button
+                onClick={next}
+                className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
+              >
+                Continue <ChevronRight className="w-4 h-4" />
+              </Button>
+            ) : step !== 'scenarios' ? (
               <Button
                 onClick={step === 'photo' ? handleSubmit : next}
                 disabled={!canProceed() || loading || uploading}
-                className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-gray-900 font-semibold gap-2"
+                className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                  <>
-                    {step === 'photo' ? 'Finish setup' : 'Continue'}
-                    <ChevronRight className="w-4 h-4" />
-                  </>
+                  <>{step === 'photo' ? 'Finish setup' : 'Continue'}<ChevronRight className="w-4 h-4" /></>
                 )}
               </Button>
-            )}
+            ) : null}
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-4">

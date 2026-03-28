@@ -88,6 +88,11 @@ export async function GET(req: NextRequest) {
     radiusMi,
     postMoodTags,
     behavior,
+    // Client-only signals — passed as params when available, else empty defaults
+    vibeCardIds: [],
+    scenarioAnswers: {},
+    sessionIntention: null,
+    reflections: {},
   }
 
   // Generate events (seeded — same set every call for consistency)

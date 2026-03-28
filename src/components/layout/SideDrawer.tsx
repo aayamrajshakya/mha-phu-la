@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Menu, X, MapPin, Heart } from 'lucide-react'
+import { Menu, X, MapPin, Heart, Lock } from 'lucide-react'
 import { SupportPrefs, DEFAULT_SUPPORT_PREFS } from '@/lib/recommend'
+import { SENSITIVE_CATEGORIES, KEYS, readLS, writeLS } from '@/lib/user-prefs'
 
 const INTERESTS = [
   'Sports', 'Music', 'Dancing', 'Reading', 'Gaming',
@@ -57,6 +58,7 @@ export default function SideDrawer() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [radius, setRadius] = useState(DEFAULT_RADIUS)
   const [supportPrefs, setSupportPrefs] = useState<SupportPrefs>(DEFAULT_SUPPORT_PREFS)
+  const [sensitiveOptIns, setSensitiveOptIns] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     try {
@@ -68,8 +70,20 @@ export default function SideDrawer() {
 
       const storedPrefs = localStorage.getItem(SUPPORT_PREFS_KEY)
       if (storedPrefs) setSupportPrefs({ ...DEFAULT_SUPPORT_PREFS, ...JSON.parse(storedPrefs) })
+
+      const storedSensitive = readLS<string[]>(KEYS.sensitivePrefs, [])
+      setSensitiveOptIns(new Set(storedSensitive))
     } catch {}
   }, [])
+
+  function toggleSensitive(id: string) {
+    setSensitiveOptIns(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      writeLS(KEYS.sensitivePrefs, [...next])
+      return next
+    })
+  }
 
   function toggle(interest: string) {
     setSelected(prev => {
@@ -195,6 +209,41 @@ export default function SideDrawer() {
                   { value: 'any',     label: 'Any' },
                 ]}
               />
+            </div>
+          </div>
+
+          {/* Private support categories */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <Lock className="w-3.5 h-3.5 text-gray-400" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Private support categories</p>
+            </div>
+            <p className="text-[10px] text-gray-400 mb-3 leading-relaxed">
+              Opt in to see events for these communities. Stored only on your device — never shared.
+            </p>
+            <div className="flex flex-col gap-2">
+              {SENSITIVE_CATEGORIES.map(cat => {
+                const active = sensitiveOptIns.has(cat.id)
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => toggleSensitive(cat.id)}
+                    className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                      active ? 'border-yellow-400 bg-yellow-50' : 'border-gray-100 bg-white hover:border-yellow-200'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                      active ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300'
+                    }`}>
+                      {active && <span className="text-[8px] text-gray-900 font-bold">✓</span>}
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-800">{cat.label}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{cat.description}</p>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
 

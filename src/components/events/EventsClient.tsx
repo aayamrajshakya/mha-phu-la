@@ -4,10 +4,16 @@ import { useState, useEffect, useMemo } from 'react'
 import { MHEvent, EventCategory } from '@/lib/events'
 import { scoreEvents, UserContext, SupportPrefs, DEFAULT_SUPPORT_PREFS, EventBehavior, ScoredEvent } from '@/lib/recommend'
 import { RADIUS_KEY, DEFAULT_RADIUS, SUPPORT_PREFS_KEY } from '@/components/layout/SideDrawer'
-import { MapPin, Clock, Users, Calendar, Tag, Bookmark, BookmarkCheck, X, Sparkles } from 'lucide-react'
+import {
+  KEYS, readLS, writeLS, readSession,
+  vibeCardTagsFromIds, scenarioTagsFromAnswers,
+  ReflectionData,
+} from '@/lib/user-prefs'
+import IntentionCheckIn from './IntentionCheckIn'
+import ReflectionDialog from './ReflectionDialog'
+import { MapPin, Clock, Users, Calendar, Tag, Bookmark, BookmarkCheck, X, Sparkles, ClipboardList } from 'lucide-react'
 
 const INTERESTS_KEY = 'mhafu_interests'
-const BEHAVIOR_KEY  = 'mhafu_event_interactions'
 
 const CATEGORY_COLORS: Record<EventCategory, string> = {
   'Counseling':            'bg-blue-100 text-blue-700',
@@ -45,7 +51,7 @@ interface Props {
 type TabType = 'for-you' | 'all'
 
 // ---------------------------------------------------------------------------
-// EventCard — shared between both tabs
+// EventCard
 // ---------------------------------------------------------------------------
 function EventCard({
   event,
@@ -53,7 +59,9 @@ function EventCard({
   distanceKm,
   score,
   behavior,
+  reflections,
   onInteract,
+  onReflect,
   expanded,
   onToggleExpand,
 }: {
@@ -62,20 +70,22 @@ function EventCard({
   distanceKm?: number | null
   score?: number
   behavior: EventBehavior
+  reflections: Record<string, ReflectionData>
   onInteract: (id: string, type: 'saved' | 'registered' | 'dismissed' | 'viewed') => void
+  onReflect: (event: MHEvent) => void
   expanded: boolean
   onToggleExpand: () => void
 }) {
   const spotsPct = event.spotsLeft / event.capacity
   const spotsColor = spotsPct === 0 ? 'text-red-500' : spotsPct < 0.25 ? 'text-orange-500' : 'text-green-600'
   const isSaved = behavior[event.id] === 'saved'
-  const isDismissed = behavior[event.id] === 'dismissed'
+  const isRegistered = behavior[event.id] === 'registered'
+  const hasReflection = !!reflections[event.id]
 
-  if (isDismissed) return null
+  if (behavior[event.id] === 'dismissed') return null
 
   return (
     <div className="px-4 py-4 bg-white hover:bg-gray-50/50 transition-colors">
-      {/* For You explanation badge */}
       {explanation && (
         <div className="flex items-center gap-1 mb-2">
           <Sparkles className="w-3 h-3 text-yellow-400" />
@@ -105,7 +115,7 @@ function EventCard({
         <span className="flex items-center gap-1 text-[11px] text-gray-400">
           <MapPin className="w-3 h-3" />
           {event.location}
-          {distanceKm != null && <span className="text-gray-300">· {distanceKm.toFixed(1)} km</span>}
+          {distanceKm != null && <span className="text-gray-300 ml-0.5">· {distanceKm.toFixed(1)} km</span>}
         </span>
         <span className="flex items-center gap-1 text-[11px] text-gray-400">
           <Clock className="w-3 h-3" /> {event.durationMin} min
@@ -118,10 +128,7 @@ function EventCard({
 
       {/* Action row */}
       <div className="flex items-center gap-2 mt-2">
-        <button
-          onClick={() => onToggleExpand()}
-          className="text-[11px] text-yellow-500 hover:underline"
-        >
+        <button onClick={onToggleExpand} className="text-[11px] text-yellow-500 hover:underline">
           {expanded ? 'Show less' : 'Show more'}
         </button>
         <span className="text-gray-200">·</span>
@@ -132,6 +139,20 @@ function EventCard({
           {isSaved ? <BookmarkCheck className="w-3.5 h-3.5" /> : <Bookmark className="w-3.5 h-3.5" />}
           {isSaved ? 'Saved' : 'Save'}
         </button>
+        {isRegistered && !hasReflection && (
+          <>
+            <span className="text-gray-200">·</span>
+            <button
+              onClick={() => onReflect(event)}
+              className="flex items-center gap-1 text-[11px] text-purple-500 hover:text-purple-600"
+            >
+              <ClipboardList className="w-3.5 h-3.5" /> Reflect
+            </button>
+          </>
+        )}
+        {hasReflection && (
+          <span className="text-[10px] text-gray-400 ml-1">✓ Reflected</span>
+        )}
         <button
           onClick={() => onInteract(event.id, 'dismissed')}
           className="ml-auto text-gray-300 hover:text-gray-500 transition-colors"
@@ -149,11 +170,10 @@ function EventCard({
             <Calendar className="w-3 h-3" /> Hosted by {event.host}
           </p>
           <div className="flex flex-wrap gap-1 mt-1">
-            {[...event.tags,
+            {[
+              ...event.tags,
               event.groupSize === 'small' ? 'small group' : 'large group',
-              event.vibe,
-              event.format,
-              event.dayType,
+              event.vibe, event.format, event.dayType,
             ].map(tag => (
               <span key={tag} className="flex items-center gap-0.5 text-[10px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
                 <Tag className="w-2.5 h-2.5" /> {tag}
@@ -173,14 +193,14 @@ function EventCard({
 
           <button
             disabled={event.spotsLeft === 0}
-            onClick={() => onInteract(event.id, 'registered')}
+            onClick={() => !isRegistered && onInteract(event.id, 'registered')}
             className={`mt-2 w-full py-2 rounded-full text-sm font-semibold transition-colors ${
-              behavior[event.id] === 'registered'
+              isRegistered
                 ? 'bg-green-100 text-green-700 cursor-default'
                 : 'bg-yellow-400 hover:bg-yellow-500 text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed'
             }`}
           >
-            {event.spotsLeft === 0 ? 'Event Full' : behavior[event.id] === 'registered' ? 'Registered' : 'Register Interest'}
+            {event.spotsLeft === 0 ? 'Event Full' : isRegistered ? 'Registered' : 'Register Interest'}
           </button>
         </div>
       )}
@@ -197,29 +217,45 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
   const [activeCategory, setActiveCategory] = useState<string>('All')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [behavior, setBehavior] = useState<EventBehavior>({})
+  const [reflections, setReflections] = useState<Record<string, ReflectionData>>({})
+  const [reflectingOn, setReflectingOn] = useState<MHEvent | null>(null)
 
-  // Prefs loaded from localStorage
+  // Preference signals from localStorage
   const [interests, setInterests] = useState<string[]>([])
   const [supportPrefs, setSupportPrefs] = useState<SupportPrefs>(DEFAULT_SUPPORT_PREFS)
   const [radiusMi, setRadiusMi] = useState(DEFAULT_RADIUS)
+  const [vibeCardIds, setVibeCardIds] = useState<string[]>([])
+  const [scenarioAnswers, setScenarioAnswers] = useState<Record<string, string>>({})
+  const [sessionIntention, setSessionIntention] = useState<string | null>(null)
+  const [sensitiveOptIns, setSensitiveOptIns] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     try {
       const si = localStorage.getItem(INTERESTS_KEY)
       if (si) setInterests(JSON.parse(si))
+
       const sr = localStorage.getItem(RADIUS_KEY)
       if (sr) setRadiusMi(Number(sr))
+
       const sp = localStorage.getItem(SUPPORT_PREFS_KEY)
       if (sp) setSupportPrefs({ ...DEFAULT_SUPPORT_PREFS, ...JSON.parse(sp) })
-      const sb = localStorage.getItem(BEHAVIOR_KEY)
-      if (sb) setBehavior(JSON.parse(sb))
+
+      setVibeCardIds(readLS<string[]>(KEYS.vibeCards, []))
+      setScenarioAnswers(readLS<Record<string, string>>(KEYS.scenarioPrefs, {}))
+      setBehavior(readLS<EventBehavior>(KEYS.eventBehavior, {}))
+      setReflections(readLS<Record<string, ReflectionData>>(KEYS.reflections, {}))
+      setSensitiveOptIns(new Set(readLS<string[]>(KEYS.sensitivePrefs, [])))
+
+      // Session intention from sessionStorage (session-only, ephemeral)
+      const intention = readSession(KEYS.sessionIntention)
+      if (intention) setSessionIntention(intention)
     } catch {}
   }, [])
 
   function interact(id: string, type: 'saved' | 'registered' | 'dismissed' | 'viewed') {
     setBehavior(prev => {
       const next = { ...prev, [id]: type }
-      localStorage.setItem(BEHAVIOR_KEY, JSON.stringify(next))
+      writeLS(KEYS.eventBehavior, next)
       return next
     })
   }
@@ -232,6 +268,18 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
     })
   }
 
+  function handleReflectionSaved(reflection: ReflectionData) {
+    setReflections(prev => ({ ...prev, [reflection.eventId]: reflection }))
+  }
+
+  // Privacy filter: remove sensitive events the user hasn't opted into
+  const visibleEvents = useMemo(() =>
+    events.filter(e =>
+      !e.sensitiveCategory || sensitiveOptIns.has(e.sensitiveCategory)
+    ),
+    [events, sensitiveOptIns]
+  )
+
   // Build user context for scorer
   const ctx: UserContext = useMemo(() => ({
     interests,
@@ -241,16 +289,19 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
     radiusMi,
     postMoodTags,
     behavior,
-  }), [interests, supportPrefs, userLat, userLng, radiusMi, postMoodTags, behavior])
+    vibeCardIds,
+    scenarioAnswers,
+    sessionIntention,
+    reflections,
+  }), [interests, supportPrefs, userLat, userLng, radiusMi, postMoodTags, behavior, vibeCardIds, scenarioAnswers, sessionIntention, reflections])
 
-  // Score events for "For You" tab
-  const scored: ScoredEvent[] = useMemo(() => scoreEvents(events, ctx), [events, ctx])
+  const scored: ScoredEvent[] = useMemo(() => scoreEvents(visibleEvents, ctx), [visibleEvents, ctx])
 
-  // Category filter for "All" tab
-  const categories = ['All', ...Array.from(new Set(events.map(e => e.category)))]
-  const filteredAll = activeCategory === 'All' ? events : events.filter(e => e.category === activeCategory)
+  const categories = ['All', ...Array.from(new Set(visibleEvents.map(e => e.category)))]
+  const filteredAll = activeCategory === 'All' ? visibleEvents : visibleEvents.filter(e => e.category === activeCategory)
 
   const dismissedCount = Object.values(behavior).filter(v => v === 'dismissed').length
+  const hasPrefs = interests.length > 0 || vibeCardIds.length > 0 || Object.keys(scenarioAnswers).length > 0
 
   return (
     <div className="flex flex-col">
@@ -274,11 +325,20 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
         </button>
       </div>
 
-      {/* For You tab */}
+      {/* ── For You tab ── */}
       {tab === 'for-you' && (
         <>
+          {/* Session intention check-in */}
+          <IntentionCheckIn
+            current={sessionIntention}
+            onSelect={id => setSessionIntention(id || null)}
+          />
+
           <div className="px-4 pt-3 pb-1 flex items-center justify-between">
-            <p className="text-xs text-gray-400">{scored.length} personalised picks</p>
+            <p className="text-xs text-gray-400">
+              {scored.length} personalised picks
+              {!hasPrefs && <span className="ml-1 text-yellow-500">· Set preferences in the menu ☰ for better matches</span>}
+            </p>
             {dismissedCount > 0 && (
               <button
                 onClick={() => {
@@ -287,7 +347,7 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
                     if (v !== 'dismissed') next[k] = v
                   }
                   setBehavior(next)
-                  localStorage.setItem(BEHAVIOR_KEY, JSON.stringify(next))
+                  writeLS(KEYS.eventBehavior, next)
                 }}
                 className="text-[10px] text-gray-400 hover:text-red-400"
               >
@@ -295,11 +355,12 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
               </button>
             )}
           </div>
+
           {scored.length === 0 ? (
             <div className="text-center py-16 px-6 text-gray-400">
               <p className="text-3xl mb-3">✨</p>
               <p className="font-medium text-sm">No recommendations yet</p>
-              <p className="text-xs mt-1">Set your interests and preferences in the menu to get personalised picks</p>
+              <p className="text-xs mt-1">Set your interests and preferences in the menu ☰ for personalised picks</p>
             </div>
           ) : (
             <div className="flex flex-col divide-y divide-gray-50 pb-24">
@@ -311,7 +372,9 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
                   distanceKm={s.distanceKm}
                   score={s.score}
                   behavior={behavior}
+                  reflections={reflections}
                   onInteract={interact}
+                  onReflect={setReflectingOn}
                   expanded={expanded === s.event.id}
                   onToggleExpand={() => handleToggleExpand(s.event.id)}
                 />
@@ -321,7 +384,7 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
         </>
       )}
 
-      {/* All Events tab */}
+      {/* ── All Events tab ── */}
       {tab === 'all' && (
         <>
           <div className="px-4 py-3 overflow-x-auto flex gap-2 border-b border-gray-100 no-scrollbar">
@@ -346,13 +409,24 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
                 key={event.id}
                 event={event}
                 behavior={behavior}
+                reflections={reflections}
                 onInteract={interact}
+                onReflect={setReflectingOn}
                 expanded={expanded === event.id}
                 onToggleExpand={() => handleToggleExpand(event.id)}
               />
             ))}
           </div>
         </>
+      )}
+
+      {/* Reflection dialog */}
+      {reflectingOn && (
+        <ReflectionDialog
+          event={reflectingOn}
+          onClose={() => setReflectingOn(null)}
+          onSaved={handleReflectionSaved}
+        />
       )}
     </div>
   )

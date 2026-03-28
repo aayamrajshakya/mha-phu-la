@@ -4,15 +4,24 @@
  * Architecture: rule-based scoring + structured signals.
  * LLM layer (WebLLM) sits on top for text understanding — see llm-prompts.ts.
  *
- * final_score = 0.30×interest + 0.20×support + 0.15×eventPref + 0.20×behavior + 0.15×location
+ * final_score =
+ *   0.28 × interest_score      (interests + vibe card tags + scenario tags → Jaccard)
+ *   0.18 × support_score       (groupSize / vibe / format / timing prefs)
+ *   0.12 × eventPref_score     (availability, urgency, social proof)
+ *   0.20 × behavior_score      (interaction history + category affinity + reflection signal)
+ *   0.12 × location_score      (haversine distance decay)
+ *   + intentionBonus           (up to +0.10 additive: session intention → category match)
+ *   + vibeCardCategoryBonus    (up to +0.08 additive: vibe card → direct category match)
  */
 
 import { MHEvent, EventCategory } from './events'
+import {
+  IntentionOption, INTENTION_OPTIONS,
+  ReflectionData, VibeCard, VIBE_CARDS,
+  vibeCardTagsFromIds, scenarioTagsFromAnswers, vibeCardCategoryBoosts,
+} from './user-prefs'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
+// Re-export SupportPrefs so SideDrawer doesn't need to import from here AND user-prefs
 export interface SupportPrefs {
   groupSize: 'small' | 'large' | 'any'
   vibe: 'active' | 'quiet' | 'any'
@@ -20,17 +29,31 @@ export interface SupportPrefs {
   timing: 'weekday' | 'weekend' | 'any'
 }
 
+export const DEFAULT_SUPPORT_PREFS: SupportPrefs = {
+  groupSize: 'any',
+  vibe: 'any',
+  format: 'any',
+  timing: 'any',
+}
+
 export type InteractionType = 'viewed' | 'saved' | 'registered' | 'dismissed'
 export type EventBehavior = Record<string, InteractionType>
 
 export interface UserContext {
-  interests: string[]          // from localStorage mhafu_interests
-  supportPrefs: SupportPrefs   // from localStorage mhafu_support_prefs
+  // Core
+  interests: string[]
+  supportPrefs: SupportPrefs
   lat: number | null
   lng: number | null
   radiusMi: number
-  postMoodTags: string[]       // mood_tag values from recent posts
-  behavior: EventBehavior      // from localStorage mhafu_event_interactions
+  postMoodTags: string[]
+  behavior: EventBehavior
+
+  // Extended preference signals (from user-prefs.ts)
+  vibeCardIds: string[]            // selected vibe card IDs
+  scenarioAnswers: Record<string, string> // scenario question → answer ID
+  sessionIntention: string | null  // current session intention ID (sessionStorage)
+  reflections: Record<string, ReflectionData>  // event feedback history
 }
 
 export interface ScoreBreakdown {
@@ -39,6 +62,8 @@ export interface ScoreBreakdown {
   eventPref: number
   behavior: number
   location: number
+  intentionBonus: number
+  vibeCardBonus: number
   total: number
 }
 
@@ -55,16 +80,17 @@ export interface ScoredEvent {
 // ---------------------------------------------------------------------------
 
 const WEIGHTS = {
-  interest:   0.30,
-  support:    0.20,
-  eventPref:  0.15,
+  interest:   0.28,
+  support:    0.18,
+  eventPref:  0.12,
   behavior:   0.20,
-  location:   0.15,
+  location:   0.12,
 }
+const MAX_INTENTION_BONUS   = 0.10
+const MAX_VIBE_CARD_BONUS   = 0.08
 
 // ---------------------------------------------------------------------------
-// Interest → tag vocabulary mapping
-// Maps user's lifestyle interests to mental-health event tag space
+// Interest + vibe card + scenario → tag vocabulary mapping
 // ---------------------------------------------------------------------------
 
 const INTEREST_TAG_MAP: Record<string, string[]> = {
@@ -92,7 +118,6 @@ const INTEREST_TAG_MAP: Record<string, string[]> = {
   'Fashion':     ['creativity', 'expression', 'social'],
   'Board Games': ['social', 'community', 'casual', 'low pressure'],
   'Podcasts':    ['mindfulness', 'self-care', 'reflection', 'awareness'],
-  'Meditation':  ['meditation', 'mindfulness', 'calm', 'breathing'],
 }
 
 // Mood → category affinity for behavior_score
@@ -123,20 +148,25 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 // Score components
 // ---------------------------------------------------------------------------
 
-function computeInterestScore(event: MHEvent, interests: string[]): number {
-  if (interests.length === 0) return 0.5 // neutral default
-
-  // Build user tag set from interest → tag mapping
-  const userTags = new Set<string>()
+function buildUserTagSet(interests: string[], vibeCardIds: string[], scenarioAnswers: Record<string, string>): Set<string> {
+  const tags = new Set<string>()
+  // From explicit interests
   for (const interest of interests) {
-    const mapped = INTEREST_TAG_MAP[interest] ?? []
-    for (const t of mapped) userTags.add(t.toLowerCase())
+    for (const t of INTEREST_TAG_MAP[interest] ?? []) tags.add(t.toLowerCase())
   }
+  // From vibe card selections
+  for (const t of vibeCardTagsFromIds(vibeCardIds)) tags.add(t.toLowerCase())
+  // From scenario answers
+  for (const t of scenarioTagsFromAnswers(scenarioAnswers)) tags.add(t.toLowerCase())
+  return tags
+}
+
+function computeInterestScore(event: MHEvent, userTags: Set<string>): number {
+  if (userTags.size === 0) return 0.5
 
   const eventTags = new Set(event.tags.map(t => t.toLowerCase()))
-  if (userTags.size === 0 || eventTags.size === 0) return 0.5
+  if (eventTags.size === 0) return 0.5
 
-  // Jaccard similarity
   let intersection = 0
   for (const t of eventTags) {
     if (userTags.has(t)) intersection++
@@ -147,47 +177,56 @@ function computeInterestScore(event: MHEvent, interests: string[]): number {
 
 function computeSupportScore(event: MHEvent, prefs: SupportPrefs): number {
   let score = 1.0
-
   if (prefs.groupSize !== 'any' && event.groupSize !== prefs.groupSize) score -= 0.25
   if (prefs.vibe !== 'any' && event.vibe !== prefs.vibe) score -= 0.25
   if (prefs.format !== 'any' && event.format !== prefs.format) score -= 0.25
   if (prefs.timing !== 'any' && event.dayType !== prefs.timing) score -= 0.25
-
   return Math.max(0, score)
 }
 
 function computeEventPrefScore(event: MHEvent): number {
-  if (event.spotsLeft === 0) return 0.1 // almost penalize full events
+  if (event.spotsLeft === 0) return 0.1
 
   const spotsRatio = event.spotsLeft / event.capacity
-  let score = 0.3 + spotsRatio * 0.4 // 0.3 (full) → 0.7 (empty)
+  let score = 0.3 + spotsRatio * 0.4
 
-  // Urgency bonus: events within next 3 days
   const daysAway = (new Date(event.date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   if (daysAway <= 1) score += 0.2
   else if (daysAway <= 3) score += 0.1
 
-  // Social proof: >60% registered
   const fillRate = (event.capacity - event.spotsLeft) / event.capacity
   if (fillRate > 0.6 && event.spotsLeft > 0) score += 0.1
 
   return Math.min(1, score)
 }
 
-function computeBehaviorScore(event: MHEvent, behavior: EventBehavior, postMoodTags: string[]): number {
-  let score = 0.5 // neutral baseline
+function computeBehaviorScore(
+  event: MHEvent,
+  behavior: EventBehavior,
+  categoryHistory: Record<string, InteractionType[]>,
+  postMoodTags: string[],
+  reflections: Record<string, ReflectionData>,
+): number {
+  let score = 0.5
 
-  // Category affinity from past interactions
-  const interactedCategories: Record<EventCategory | string, InteractionType[]> = {}
-  for (const [id, type] of Object.entries(behavior)) {
-    // id format: "evt-N-XXXX", we don't have category here — handled in EventsClient
-    // This function receives pre-aggregated category signals; use behavior on this specific event
-    if (id === event.id) {
-      if (type === 'registered') score = Math.min(1, score + 0.3)
-      if (type === 'saved') score = Math.min(1, score + 0.2)
-      if (type === 'viewed') score = Math.min(1, score + 0.1)
-      if (type === 'dismissed') return 0.0 // hard penalize
-    }
+  // Direct event interaction
+  const direct = behavior[event.id]
+  if (direct === 'dismissed') return 0.0
+  if (direct === 'registered') score += 0.25
+  if (direct === 'saved') score += 0.15
+  if (direct === 'viewed') score += 0.08
+
+  // Category affinity from history
+  const catHistory = categoryHistory[event.category] ?? []
+  if (catHistory.includes('registered')) score = Math.min(1, score + 0.20)
+  if (catHistory.includes('saved')) score = Math.min(1, score + 0.10)
+  if (catHistory.includes('dismissed') && !direct) score = Math.max(0, score - 0.25)
+
+  // Reflection signal: if user has reflected on same-category events
+  const categoryReflections = Object.values(reflections).filter(r => r.eventCategory === event.category)
+  for (const r of categoryReflections) {
+    if (r.goAgain === true && r.comfortable === true) score = Math.min(1, score + 0.15)
+    if (r.helpful === false || r.relevant === false) score = Math.max(0, score - 0.15)
   }
 
   // Mood signal from recent posts
@@ -195,81 +234,72 @@ function computeBehaviorScore(event: MHEvent, behavior: EventBehavior, postMoodT
     const allText = postMoodTags.join(' ').toLowerCase()
     const isNegative = NEGATIVE_MOOD_WORDS.some(w => allText.includes(w))
     const isPositive = POSITIVE_MOOD_WORDS.some(w => allText.includes(w))
-
-    if (isNegative && NEGATIVE_MOOD_BOOSTS.includes(event.category)) score = Math.min(1, score + 0.25)
-    if (isPositive && POSITIVE_MOOD_BOOSTS.includes(event.category)) score = Math.min(1, score + 0.2)
-  }
-
-  return score
-}
-
-function computeBehaviorScoreWithCategoryHistory(
-  event: MHEvent,
-  behavior: EventBehavior,
-  categoryHistory: Record<string, InteractionType[]>,
-  postMoodTags: string[],
-): number {
-  let score = 0.5
-
-  // Direct event interaction
-  const direct = behavior[event.id]
-  if (direct === 'dismissed') return 0.0
-  if (direct === 'registered') score += 0.3
-  if (direct === 'saved') score += 0.2
-  if (direct === 'viewed') score += 0.1
-
-  // Category history
-  const catHistory = categoryHistory[event.category] ?? []
-  if (catHistory.includes('registered')) score = Math.min(1, score + 0.2)
-  if (catHistory.includes('saved')) score = Math.min(1, score + 0.1)
-  if (catHistory.includes('dismissed') && !direct) score = Math.max(0, score - 0.3)
-
-  // Mood signal
-  if (postMoodTags.length > 0) {
-    const allText = postMoodTags.join(' ').toLowerCase()
-    const isNegative = NEGATIVE_MOOD_WORDS.some(w => allText.includes(w))
-    const isPositive = POSITIVE_MOOD_WORDS.some(w => allText.includes(w))
-    if (isNegative && NEGATIVE_MOOD_BOOSTS.includes(event.category)) score = Math.min(1, score + 0.25)
-    if (isPositive && POSITIVE_MOOD_BOOSTS.includes(event.category)) score = Math.min(1, score + 0.2)
+    if (isNegative && NEGATIVE_MOOD_BOOSTS.includes(event.category)) score = Math.min(1, score + 0.20)
+    if (isPositive && POSITIVE_MOOD_BOOSTS.includes(event.category)) score = Math.min(1, score + 0.15)
   }
 
   return Math.max(0, Math.min(1, score))
 }
 
-function computeLocationScore(event: MHEvent, userLat: number | null, userLng: number | null, radiusMi: number): { score: number; distanceKm: number | null } {
+function computeLocationScore(
+  event: MHEvent, userLat: number | null, userLng: number | null, radiusMi: number
+): { score: number; distanceKm: number | null } {
   if (userLat == null || userLng == null) return { score: 0.5, distanceKm: null }
 
   const distanceKm = haversineKm(userLat, userLng, event.lat, event.lng)
   const radiusKm = radiusMi * 1.60934
 
   if (distanceKm <= radiusKm) {
-    // Within radius: score from 1.0 (at center) to 0.5 (at edge)
-    const score = 1.0 - (distanceKm / radiusKm) * 0.5
-    return { score, distanceKm }
+    return { score: 1.0 - (distanceKm / radiusKm) * 0.5, distanceKm }
   } else if (distanceKm <= radiusKm * 2) {
-    // Just outside radius: score 0.5 → 0
-    const score = 0.5 * (1 - (distanceKm - radiusKm) / radiusKm)
-    return { score: Math.max(0, score), distanceKm }
+    return { score: Math.max(0, 0.5 * (1 - (distanceKm - radiusKm) / radiusKm)), distanceKm }
   }
-
   return { score: 0, distanceKm }
 }
 
+/** Session intention bonus: +MAX_INTENTION_BONUS if event category matches intention */
+function computeIntentionBonus(event: MHEvent, intentionId: string | null): number {
+  if (!intentionId) return 0
+  const intention = INTENTION_OPTIONS.find(o => o.id === intentionId)
+  if (!intention) return 0
+  return intention.categoryBoosts.includes(event.category) ? MAX_INTENTION_BONUS : 0
+}
+
+/** Vibe card category bonus: proportional to how many selected cards directly boost this category */
+function computeVibeCardBonus(event: MHEvent, vibeCardIds: string[]): number {
+  if (vibeCardIds.length === 0) return 0
+  const boostedCategories = vibeCardCategoryBoosts(vibeCardIds)
+  if (boostedCategories.includes(event.category)) {
+    // Scale by how many cards boost this category
+    const count = VIBE_CARDS.filter(c =>
+      vibeCardIds.includes(c.id) && c.categoryBoosts?.includes(event.category)
+    ).length
+    return Math.min(MAX_VIBE_CARD_BONUS, count * (MAX_VIBE_CARD_BONUS / 2))
+  }
+  return 0
+}
+
 // ---------------------------------------------------------------------------
-// Explanation generator (rule-based; LLM can override via llm-prompts.ts)
+// Explanation generator
 // ---------------------------------------------------------------------------
 
-function buildExplanation(breakdown: ScoreBreakdown, event: MHEvent, distanceKm: number | null): string {
+function buildExplanation(breakdown: ScoreBreakdown, event: MHEvent, distanceKm: number | null, intentionId: string | null): string {
   const reasons: string[] = []
 
+  if (breakdown.intentionBonus > 0) {
+    const intention = INTENTION_OPTIONS.find(o => o.id === intentionId)
+    if (intention) reasons.push(`fits your intention to ${intention.label.toLowerCase()}`)
+  }
+  if (breakdown.vibeCardBonus > 0) reasons.push(`matches what you said resonates with you`)
   if (breakdown.interest >= 0.25) reasons.push(`matches your interests`)
   if (breakdown.support >= 0.75) reasons.push(`fits your ${event.groupSize} group preference`)
   if (breakdown.location >= 0.8 && distanceKm != null) reasons.push(`only ${distanceKm.toFixed(1)} km away`)
-  if (breakdown.behavior >= 0.7) reasons.push(`aligns with your activity`)
-  if (breakdown.eventPref >= 0.7 && event.spotsLeft > 0) reasons.push(`${event.spotsLeft} spots still open`)
+  if (breakdown.behavior >= 0.75) reasons.push(`aligns with your activity`)
+  if (breakdown.eventPref >= 0.7 && event.spotsLeft > 0) reasons.push(`${event.spotsLeft} spots open`)
 
-  if (reasons.length === 0) return `Recommended for you`
-  return reasons[0][0].toUpperCase() + reasons[0].slice(1) + (reasons.length > 1 ? ` · ${reasons.slice(1).join(' · ')}` : '')
+  if (reasons.length === 0) return 'Recommended for you'
+  const first = reasons[0][0].toUpperCase() + reasons[0].slice(1)
+  return first + (reasons.length > 1 ? ` · ${reasons.slice(1).join(' · ')}` : '')
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +307,10 @@ function buildExplanation(breakdown: ScoreBreakdown, event: MHEvent, distanceKm:
 // ---------------------------------------------------------------------------
 
 export function scoreEvents(events: MHEvent[], ctx: UserContext): ScoredEvent[] {
-  // Pre-compute category history from behavior map + events list
+  // Pre-compute user tag set (interests + vibe cards + scenario answers merged)
+  const userTags = buildUserTagSet(ctx.interests, ctx.vibeCardIds, ctx.scenarioAnswers)
+
+  // Pre-compute category history from behavior + event list
   const categoryHistory: Record<string, InteractionType[]> = {}
   for (const [id, type] of Object.entries(ctx.behavior)) {
     const match = events.find(e => e.id === id)
@@ -289,40 +322,36 @@ export function scoreEvents(events: MHEvent[], ctx: UserContext): ScoredEvent[] 
 
   return events
     .map(event => {
-      const interest  = computeInterestScore(event, ctx.interests)
-      const support   = computeSupportScore(event, ctx.supportPrefs)
-      const eventPref = computeEventPrefScore(event)
-      const behavior  = computeBehaviorScoreWithCategoryHistory(event, ctx.behavior, categoryHistory, ctx.postMoodTags)
+      const interest      = computeInterestScore(event, userTags)
+      const support       = computeSupportScore(event, ctx.supportPrefs)
+      const eventPref     = computeEventPrefScore(event)
+      const behavior      = computeBehaviorScore(event, ctx.behavior, categoryHistory, ctx.postMoodTags, ctx.reflections)
       const { score: location, distanceKm } = computeLocationScore(event, ctx.lat, ctx.lng, ctx.radiusMi)
+      const intentionBonus  = computeIntentionBonus(event, ctx.sessionIntention)
+      const vibeCardBonus   = computeVibeCardBonus(event, ctx.vibeCardIds)
 
-      const total =
-        WEIGHTS.interest   * interest +
-        WEIGHTS.support    * support +
-        WEIGHTS.eventPref  * eventPref +
-        WEIGHTS.behavior   * behavior +
-        WEIGHTS.location   * location
+      const base =
+        WEIGHTS.interest  * interest +
+        WEIGHTS.support   * support +
+        WEIGHTS.eventPref * eventPref +
+        WEIGHTS.behavior  * behavior +
+        WEIGHTS.location  * location
 
-      const breakdown: ScoreBreakdown = { interest, support, eventPref, behavior, location, total }
+      const total = Math.min(1, base + intentionBonus + vibeCardBonus)
+
+      const breakdown: ScoreBreakdown = {
+        interest, support, eventPref, behavior, location,
+        intentionBonus, vibeCardBonus, total,
+      }
 
       return {
         event,
         score: Math.round(total * 100) / 100,
         breakdown,
-        explanation: buildExplanation(breakdown, event, distanceKm),
+        explanation: buildExplanation(breakdown, event, distanceKm, ctx.sessionIntention),
         distanceKm,
       }
     })
-    .filter(s => s.breakdown.behavior > 0) // remove dismissed
+    .filter(s => s.breakdown.behavior > 0)  // remove dismissed
     .sort((a, b) => b.score - a.score)
-}
-
-// ---------------------------------------------------------------------------
-// Default support prefs (used when nothing is set in localStorage)
-// ---------------------------------------------------------------------------
-
-export const DEFAULT_SUPPORT_PREFS: SupportPrefs = {
-  groupSize: 'any',
-  vibe: 'any',
-  format: 'any',
-  timing: 'any',
 }

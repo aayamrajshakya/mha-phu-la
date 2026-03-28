@@ -41,12 +41,19 @@ export interface MHEvent {
   vibe: Vibe             // Walking/Yoga/Sports categories → active, else → quiet
   format: EventFormat    // location includes Zoom/Online → virtual
   dayType: DayType       // derived from event date
+  /**
+   * Private visibility gate. If set, event is only shown to users who have
+   * explicitly opted into this sensitive support category in their private prefs.
+   * Never inferred — only set on events explicitly designed for that audience.
+   */
+  sensitiveCategory?: string
 }
 
 const EVENT_TEMPLATES: {
   category: EventCategory
   titles: string[]
   tags: string[]
+  sensitiveCategory?: string
 }[] = [
   {
     category: 'Counseling',
@@ -137,6 +144,7 @@ const EVENT_TEMPLATES: {
       'Recovery & Resilience Circle',
     ],
     tags: ['recovery', 'addiction', 'sobriety', 'resilience', 'support'],
+    sensitiveCategory: 'recovery',
   },
   {
     category: 'Social Anxiety Meetup',
@@ -157,6 +165,7 @@ const EVENT_TEMPLATES: {
       'Compassionate Grief Support',
     ],
     tags: ['grief', 'loss', 'bereavement', 'healing', 'support'],
+    sensitiveCategory: 'grief',
   },
   {
     category: 'Mindfulness',
@@ -253,6 +262,7 @@ export function generateEvents(count = 20, seed = 42): MHEvent[] {
       vibe: isActive ? 'active' : 'quiet',
       format: isVirtual ? 'virtual' : 'offline',
       dayType: dow === 0 || dow === 6 ? 'weekend' : 'weekday',
+      ...(template.sensitiveCategory ? { sensitiveCategory: template.sensitiveCategory } : {}),
     }
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 }
