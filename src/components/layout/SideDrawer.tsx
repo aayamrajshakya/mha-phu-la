@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Menu, X, MapPin } from 'lucide-react'
+import { Menu, X, MapPin, Heart, Lock } from 'lucide-react'
+import { SupportPrefs, DEFAULT_SUPPORT_PREFS } from '@/lib/recommend'
+import { SENSITIVE_CATEGORIES, KEYS, readLS, writeLS } from '@/lib/user-prefs'
 
 const INTERESTS = [
   'Sports', 'Music', 'Dancing', 'Reading', 'Gaming',
@@ -13,12 +15,50 @@ const INTERESTS = [
 
 const INTERESTS_KEY = 'mhafu_interests'
 export const RADIUS_KEY = 'mhafu_radius'
+export const SUPPORT_PREFS_KEY = 'mhafu_support_prefs'
 export const DEFAULT_RADIUS = 5
+
+type ToggleOption<T extends string> = { value: T; label: string }
+
+function PrefsToggle<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: ToggleOption<T>[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div>
+      <p className="text-[10px] text-gray-400 mb-1.5">{label}</p>
+      <div className="flex gap-1.5">
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              value === opt.value
+                ? 'bg-yellow-400 border-yellow-400 text-gray-900'
+                : 'bg-white border-gray-200 text-gray-500 hover:border-yellow-200'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function SideDrawer() {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [radius, setRadius] = useState(DEFAULT_RADIUS)
+  const [supportPrefs, setSupportPrefs] = useState<SupportPrefs>(DEFAULT_SUPPORT_PREFS)
+  const [sensitiveOptIns, setSensitiveOptIns] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     try {
@@ -27,8 +67,23 @@ export default function SideDrawer() {
 
       const storedRadius = localStorage.getItem(RADIUS_KEY)
       if (storedRadius) setRadius(Number(storedRadius))
+
+      const storedPrefs = localStorage.getItem(SUPPORT_PREFS_KEY)
+      if (storedPrefs) setSupportPrefs({ ...DEFAULT_SUPPORT_PREFS, ...JSON.parse(storedPrefs) })
+
+      const storedSensitive = readLS<string[]>(KEYS.sensitivePrefs, [])
+      setSensitiveOptIns(new Set(storedSensitive))
     } catch {}
   }, [])
+
+  function toggleSensitive(id: string) {
+    setSensitiveOptIns(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      writeLS(KEYS.sensitivePrefs, [...next])
+      return next
+    })
+  }
 
   function toggle(interest: string) {
     setSelected(prev => {
@@ -45,9 +100,16 @@ export default function SideDrawer() {
     localStorage.setItem(RADIUS_KEY, String(val))
   }
 
+  function updateSupportPref<K extends keyof SupportPrefs>(key: K, val: SupportPrefs[K]) {
+    setSupportPrefs(prev => {
+      const next = { ...prev, [key]: val }
+      localStorage.setItem(SUPPORT_PREFS_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
   return (
     <>
-      {/* Hamburger button */}
       <button
         onClick={() => setOpen(true)}
         className="fixed top-3 left-3 z-40 w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-100 text-gray-600 hover:text-gray-900"
@@ -56,15 +118,10 @@ export default function SideDrawer() {
         <Menu className="w-5 h-5" />
       </button>
 
-      {/* Backdrop */}
       {open && (
-        <div
-          className="fixed inset-0 z-50 bg-black/30"
-          onClick={() => setOpen(false)}
-        />
+        <div className="fixed inset-0 z-50 bg-black/30" onClick={() => setOpen(false)} />
       )}
 
-      {/* Drawer */}
       <div
         className={`fixed top-0 left-0 h-full w-72 bg-white z-50 shadow-xl flex flex-col transition-transform duration-300 ease-in-out ${
           open ? 'translate-x-0' : '-translate-x-full'
@@ -81,6 +138,7 @@ export default function SideDrawer() {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-6">
+
           {/* Search radius */}
           <div>
             <div className="flex items-center gap-1.5 mb-3">
@@ -92,17 +150,100 @@ export default function SideDrawer() {
               <span className="text-sm font-bold text-yellow-500">{radius} mi</span>
             </div>
             <input
-              type="range"
-              min={1}
-              max={50}
-              step={1}
-              value={radius}
+              type="range" min={1} max={50} step={1} value={radius}
               onChange={e => handleRadius(Number(e.target.value))}
               className="w-full accent-yellow-400"
             />
             <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
-              <span>1 mi</span>
-              <span>50 mi</span>
+              <span>1 mi</span><span>50 mi</span>
+            </div>
+          </div>
+
+          {/* Support preferences (private, opt-in) */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-3">
+              <Heart className="w-3.5 h-3.5 text-gray-400" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Event preferences</p>
+            </div>
+            <p className="text-[10px] text-gray-400 mb-3 leading-relaxed">
+              Private · used only to personalise event recommendations
+            </p>
+            <div className="flex flex-col gap-3">
+              <PrefsToggle
+                label="Group size"
+                value={supportPrefs.groupSize}
+                onChange={v => updateSupportPref('groupSize', v)}
+                options={[
+                  { value: 'small', label: 'Small' },
+                  { value: 'large', label: 'Large' },
+                  { value: 'any',   label: 'Any' },
+                ]}
+              />
+              <PrefsToggle
+                label="Vibe"
+                value={supportPrefs.vibe}
+                onChange={v => updateSupportPref('vibe', v)}
+                options={[
+                  { value: 'quiet',  label: 'Calm' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'any',    label: 'Any' },
+                ]}
+              />
+              <PrefsToggle
+                label="Format"
+                value={supportPrefs.format}
+                onChange={v => updateSupportPref('format', v)}
+                options={[
+                  { value: 'offline', label: 'In-person' },
+                  { value: 'virtual', label: 'Virtual' },
+                  { value: 'any',     label: 'Any' },
+                ]}
+              />
+              <PrefsToggle
+                label="Timing"
+                value={supportPrefs.timing}
+                onChange={v => updateSupportPref('timing', v)}
+                options={[
+                  { value: 'weekday', label: 'Weekday' },
+                  { value: 'weekend', label: 'Weekend' },
+                  { value: 'any',     label: 'Any' },
+                ]}
+              />
+            </div>
+          </div>
+
+          {/* Private support categories */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2">
+              <Lock className="w-3.5 h-3.5 text-gray-400" />
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Private support categories</p>
+            </div>
+            <p className="text-[10px] text-gray-400 mb-3 leading-relaxed">
+              Opt in to see events for these communities. Stored only on your device — never shared.
+            </p>
+            <div className="flex flex-col gap-2">
+              {SENSITIVE_CATEGORIES.map(cat => {
+                const active = sensitiveOptIns.has(cat.id)
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => toggleSensitive(cat.id)}
+                    className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                      active ? 'border-yellow-400 bg-yellow-50' : 'border-gray-100 bg-white hover:border-yellow-200'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                      active ? 'bg-yellow-400 border-yellow-400' : 'border-gray-300'
+                    }`}>
+                      {active && <span className="text-[8px] text-gray-900 font-bold">✓</span>}
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-800">{cat.label}</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">{cat.description}</p>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
