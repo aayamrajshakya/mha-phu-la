@@ -17,7 +17,7 @@ import {
 import { type SupportPrefs, DEFAULT_SUPPORT_PREFS } from '@/lib/recommend'
 import { ImageChoice } from '@/components/onboarding/ImageChoice'
 
-const STEPS = ['name', 'age_range', 'gender', 'bio', 'image_questions', 'support_spaces', 'location', 'photo'] as const
+const STEPS = ['name', 'age', 'gender', 'bio', 'image_questions', 'support_spaces', 'location', 'photo'] as const
 type Step = typeof STEPS[number]
 
 const GENDERS = [
@@ -51,8 +51,8 @@ export default function OnboardingInner() {
     avatar_url: '',
   })
 
-  // Layer 1: age range & image questions
-  const [selectedAgeRange, setSelectedAgeRange] = useState('')
+  // Age
+  const [age, setAge] = useState('')
   const [imageAnswers, setImageAnswers]         = useState<Record<string, string>>({})
   const [currentImageQ, setCurrentImageQ]       = useState(0)
 
@@ -79,7 +79,7 @@ export default function OnboardingInner() {
 
   function canProceed() {
     if (step === 'name')            return form.name.trim().length >= 2
-    if (step === 'age_range')       return selectedAgeRange !== ''
+    if (step === 'age')             return Number(age) >= 18
     if (step === 'gender')          return form.gender !== ''
     if (step === 'bio')             return form.bio.trim().length >= 10
     if (step === 'image_questions') return currentImageQ >= IMAGE_QUESTIONS.length
@@ -153,7 +153,7 @@ export default function OnboardingInner() {
       id:         user.id,
       email:      user.email,
       name:       form.name,
-      age_range:  selectedAgeRange,
+      age:        Number(age),
       gender:     form.gender,
       bio:        form.bio,
       address:    form.address,
@@ -198,8 +198,7 @@ export default function OnboardingInner() {
       writeLS(KEYS.sensitivePrefs, [...sensitiveCategories])
     }
 
-    // ── Age range (localStorage only for privacy) ─────────────────────────────
-    writeLS(KEYS.ageRange, selectedAgeRange)
+    writeLS(KEYS.ageRange, age)
 
     router.push('/feed')
     router.refresh()
@@ -239,29 +238,24 @@ export default function OnboardingInner() {
             </div>
           )}
 
-          {/* ── age range ── */}
-          {step === 'age_range' && (
+          {/* ── age ── */}
+          {step === 'age' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">How old are you?</h2>
-              <p className="text-gray-500 mb-6 text-sm">We never share your exact age</p>
-              <div className="grid grid-cols-2 gap-2.5">
-                {AGE_RANGES.map(r => (
-                  <button
-                    key={r.id}
-                    onClick={() => setSelectedAgeRange(r.id)}
-                    className={`py-3.5 rounded-2xl border-2 text-sm font-semibold transition-all ${
-                      selectedAgeRange === r.id
-                        ? 'border-yellow-500 bg-yellow-50 text-gray-900'
-                        : 'border-gray-100 bg-white text-gray-600 hover:border-yellow-200'
-                    }`}
-                  >
-                    {r.label}
-                    {selectedAgeRange === r.id && (
-                      <Check className="w-3.5 h-3.5 text-yellow-500 inline ml-1.5" />
-                    )}
-                  </button>
-                ))}
-              </div>
+              <p className="text-gray-500 mb-6 text-sm">You must be 18 or older to use Mha Phu La?</p>
+              <input
+                type="number"
+                min={18}
+                max={120}
+                placeholder="Enter your age"
+                value={age}
+                onChange={e => setAge(e.target.value)}
+                autoFocus
+                className="w-full border-2 border-gray-100 rounded-2xl px-4 py-3.5 text-base font-medium focus:outline-none focus:border-yellow-400 transition-colors"
+              />
+              {age !== '' && Number(age) < 18 && (
+                <p className="text-red-500 text-sm mt-2">You must be at least 18 years old.</p>
+              )}
             </div>
           )}
 
