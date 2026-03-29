@@ -7,6 +7,7 @@ import { LocalOuting } from './RewardsClient'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 
 interface Props {
   open: boolean
@@ -19,23 +20,44 @@ interface Props {
 export default function PlanOutingDialog({ open, onClose, friends, currentUserId, onCreated }: Props) {
   const [selectedFriend, setSelectedFriend] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<OutingType | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function create() {
+  async function create() {
     if (!selectedFriend || !selectedType) return
-    const friend = friends.find(f => f.id === selectedFriend)!
-    const newOuting: LocalOuting = {
-      id: crypto.randomUUID(),
-      type: selectedType,
-      status: 'pending',
-      is_creator: true,
-      checkin_code: null,
-      checkin_code_expires_at: null,
-      partner: { id: friend.id, name: friend.name, avatar_url: friend.avatar_url ?? null },
-      created_at: new Date().toISOString(),
+    setLoading(true)
+    setError(null)
+
+    const res = await fetch('/api/outings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ partner_id: selectedFriend, type: selectedType }),
+    })
+    const json = await res.json()
+
+    if (!res.ok) {
+      setError(json.error ?? 'Something went wrong')
+      setLoading(false)
+      return
     }
+
+    const raw = json.outing
+    const friend = friends.find(f => f.id === selectedFriend)!
+    const outing: LocalOuting = {
+      id:                      raw.id,
+      type:                    raw.type,
+      status:                  raw.status,
+      is_creator:              raw.creator_id === currentUserId,
+      checkin_code:            raw.checkin_code,
+      checkin_code_expires_at: raw.checkin_code_expires_at,
+      partner: { id: friend.id, name: friend.name, avatar_url: friend.avatar_url ?? null },
+      created_at:              raw.created_at,
+    }
+
     setSelectedFriend(null)
     setSelectedType(null)
-    onCreated(newOuting)
+    setLoading(false)
+    onCreated(outing)
     onClose()
   }
 
@@ -50,7 +72,7 @@ export default function PlanOutingDialog({ open, onClose, friends, currentUserId
           <div>
             <p className="text-sm font-medium text-gray-700 mb-2">Who are you going with?</p>
             {friends.length === 0 ? (
-              <p className="text-sm text-gray-400">No connections yet. Connect with someone first!</p>
+              <p className="text-sm text-gray-400">No connections yet — connect with someone first!</p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {friends.map(f => (
@@ -91,18 +113,20 @@ export default function PlanOutingDialog({ open, onClose, friends, currentUserId
                 >
                   <span className="text-2xl">{val.emoji}</span>
                   <span className="text-xs font-medium text-gray-700">{val.label}</span>
-                  <span className="text-[10px] text-gray-400">{val.discount} at {val.partner}</span>
+                  <span className="text-[10px] text-gray-400">{val.discount} · {val.partner}</span>
                 </button>
               ))}
             </div>
           </div>
 
+          {error && <p className="text-xs text-red-500 text-center">{error}</p>}
+
           <Button
             onClick={create}
-            disabled={!selectedFriend || !selectedType}
+            disabled={!selectedFriend || !selectedType || loading}
             className="w-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold rounded-full h-11"
           >
-            {"Let's go! 🎉"}
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Let's go! 🎉"}
           </Button>
         </div>
       </DialogContent>

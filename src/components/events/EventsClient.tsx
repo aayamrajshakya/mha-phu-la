@@ -11,6 +11,7 @@ import {
 } from '@/lib/user-prefs'
 import { buildRecommendationExplanationPrompt, parseLLMJson } from '@/lib/llm-prompts'
 import { useWebLLM } from '@/hooks/useWebLLM'
+import { recordActivityDay } from '@/lib/points'
 import IntentionCheckIn from './IntentionCheckIn'
 import ReflectionDialog from './ReflectionDialog'
 import { MapPin, Clock, Users, Calendar, Tag, Bookmark, BookmarkCheck, X, Sparkles, ClipboardList, Bot, Loader2 } from 'lucide-react'
@@ -274,6 +275,14 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
       writeLS(KEYS.eventBehavior, next)
       return next
     })
+    if (type === 'registered') {
+      fetch('/api/points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'event_registered', reference_id: id }),
+      })
+      recordActivityDay()
+    }
   }
 
   function handleToggleExpand(id: string) {

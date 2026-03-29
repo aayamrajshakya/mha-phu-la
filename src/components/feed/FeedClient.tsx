@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { User, Post } from '@/types'
 import PostCard from './PostCard'
 import CreatePost from './CreatePost'
+import { recordActivityDay } from '@/lib/points'
 interface Props {
   posts: Post[]
   currentUser: User | null
@@ -28,6 +29,13 @@ export default function FeedClient({ posts: initialPosts, currentUser }: Props) 
 
     if (!error && data) {
       setPosts(prev => [{ ...data, likes_count: 0, is_liked: false }, ...prev])
+      // Award 5 pts for posting (once per day, fire-and-forget)
+      fetch('/api/points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'post_created', reference_id: data.id }),
+      })
+      recordActivityDay()
     }
   }
 

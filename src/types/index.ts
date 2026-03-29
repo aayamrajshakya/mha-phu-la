@@ -58,6 +58,15 @@ export interface Outing {
   partner: Pick<User, 'id' | 'name' | 'avatar_url'>
 }
 
+export interface PointEvent {
+  id: string
+  user_id: string
+  amount: number
+  reason: 'outing_complete' | 'post_created' | 'event_registered' | 'reflection_completed'
+  reference_id: string | null
+  created_at: string
+}
+
 export interface Conversation {
   id: string
   created_at: string

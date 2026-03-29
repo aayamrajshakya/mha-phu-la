@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { ReflectionData, KEYS, readLS, writeLS } from '@/lib/user-prefs'
 import { MHEvent } from '@/lib/events'
+import { recordActivityDay } from '@/lib/points'
 
 interface Props {
   event: MHEvent
@@ -58,6 +59,12 @@ export default function ReflectionDialog({ event, onClose, onSaved }: Props) {
     const existing = readLS<Record<string, ReflectionData>>(KEYS.reflections, {})
     writeLS(KEYS.reflections, { ...existing, [event.id]: reflection })
     onSaved(reflection)
+    fetch('/api/points', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'reflection_completed', reference_id: event.id }),
+    })
+    recordActivityDay()
     onClose()
   }
 
