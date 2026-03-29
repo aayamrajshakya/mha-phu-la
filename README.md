@@ -56,26 +56,88 @@ Set up your profile with your name, age, bio, gender, location, and vibe prefere
 
 ## Getting started
 
-The repo includes a `xyz.txt` file with the real credentials already filled in. Just rename it:
-
-```bash
-mv xyz.txt .env.local
-```
-
-Install dependencies and start the dev server:
-
-```bash
-npm install
-npm run dev
-```
-
-Open http://localhost:3000 and you should be good to go.
+> [!IMPORTANT]
+> Create a Supabase account
 
 ---
 
-## Demo accounts:
-Emails: {aayam, ashriya, yuvraj, deepankha, rashmi}@mhaphula.com  
-Password for all: Boston123!
+### 1. Clone and install
+
+```bash
+git clone https://github.com/aayamrajshakya/mha-phu-la.git
+cd mha-phu-la
+npm install
+```
+
+---
+
+### 2. Create a Supabase project
+
+1. Go to [supabase.com/dashboard](https://supabase.com/dashboard) and click **New project**
+2. Give it a name, set a database password, pick a region, and wait ~2 minutes for it to spin up
+3. Once ready, go to **Project Settings → API** and copy:
+   - **Project URL** (looks like `https://xxxxxxxxxxxx.supabase.co`)
+   - **anon / public** key
+   - **service_role** secret key (click the eye icon to reveal it)
+
+---
+
+### 3. Create `.env.local`
+
+Create a file called `.env.local` in the project root:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=<your-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+SUPABASE_DB_URL=postgresql://postgres:<your-db-password>@db.<your-project-ref>.supabase.co:5432/postgres
+```
+
+- The anon key goes in both `ANON_KEY` and `PUBLISHABLE_DEFAULT_KEY`
+- `SUPABASE_DB_URL`: find it in **Project Settings → Database → Connection string → URI**. Replace `<your-db-password>` with the password you set when creating the project.
+
+---
+
+### 4. Set up the database and seed
+
+This runs the schema, all migrations, and seeds demo data in one go:
+
+```bash
+npm run setup
+```
+
+Or if you only want the database schema without seeding:
+
+```bash
+npm run db:setup
+```
+
+> The script connects to your Supabase Postgres database directly via `SUPABASE_DB_URL` and runs all SQL files in the correct order automatically.
+
+---
+
+### 5. Start the dev server
+
+```bash
+npm run dev
+```
+
+Open http://localhost:3000.
+
+---
+
+## Demo accounts
+
+Created by `npm run setup`. Log in with any of these:
+
+| Email | Password |
+|-------|----------|
+| aayam@mhaphula.com | Boston123! |
+| ashriya@mhaphula.com | Boston123! |
+| yuvraj@mhaphula.com | Boston123! |
+| deepankha@mhaphula.com | Boston123! |
+| rashmi@mhaphula.com | Boston123! |
 
 
 ---
