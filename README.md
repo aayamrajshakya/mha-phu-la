@@ -2,7 +2,19 @@
 
 Newari for “Are you okay?”, Mha Phu La (म्ह फु ला?) is a mental health social app that helps people find support, connect with others nearby, and meet up in real life. Users share posts, join events, plan outings together, and unlock discount rewards when they check in at the same spot.
 
-Built for NLN 2026 hackathon by Aayam, Ashriya, Yuvraj, Deepankha & Rashmi.
+Built for NLN 2026 hackathon.
+
+---
+
+## Team
+
+| Name | Role | LinkedIn |
+|------|------|----------|
+| Aayam Raj Shakya | Full-stack | [in/aayamrajshakya](https://linkedin.com/in/aayamrajshakya/) |
+| Yuv Raj Pant | Architecture design & Project management | [in/yuvrajpant56](https://linkedin.com/in/yuvrajpant56/) |
+| Deepankha Bajracharya | Back-end | [in/deepankha-bajracharya](https://linkedin.com/in/deepankha-bajracharya/) |
+| Ashriya Tuladhar | Front-end | [in/ashriya-tuladhar](https://linkedin.com/in/ashriya-tuladhar/) |
+| Rashmi Kaspal | Front-end | [in/rashmi-kaspal-934591242](https://linkedin.com/in/rashmi-kaspal-934591242/) |
 
 ---
 
