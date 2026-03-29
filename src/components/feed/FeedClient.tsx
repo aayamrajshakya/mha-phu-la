@@ -31,6 +31,10 @@ export default function FeedClient({ posts: initialPosts, currentUser }: Props) 
     }
   }
 
+  async function handleDelete(postId: string) {
+    setPosts(prev => prev.filter(p => p.id !== postId))
+  }
+
   async function handleLike(postId: string, isLiked: boolean) {
     if (!currentUser) return
     if (isLiked) {
@@ -75,6 +79,7 @@ export default function FeedClient({ posts: initialPosts, currentUser }: Props) 
               post={post}
               currentUserId={currentUser?.id ?? ''}
               onLike={handleLike}
+              onDelete={handleDelete}
             />
           ))
         )}

@@ -32,23 +32,35 @@ export default async function FeedPage() {
     ...(receivedConnections ?? []).map(c => c.requester_id),
   ])
 
-  // Fetch feed posts with author info and like counts
+  // Fetch feed posts with author info and like counts (left join only — no !inner)
   const { data: posts } = await supabase
     .from('posts')
     .select(`
       *,
-      user:profiles!posts_user_id_fkey(id, name, avatar_url),
-      likes:post_likes(count),
-      my_like:post_likes!inner(user_id)
+      user:profiles!posts_user_id_fkey(id, name, avatar_url, age, gender, bio),
+      likes:post_likes(count)
     `)
+    .neq('user_id', user!.id)
     .order('created_at', { ascending: false })
     .limit(30)
+
+  // Separately fetch which of these posts the current user has liked
+  const postIds = (posts ?? []).map(p => p.id)
+  const { data: myLikes } = postIds.length
+    ? await supabase
+        .from('post_likes')
+        .select('post_id')
+        .eq('user_id', user!.id)
+        .in('post_id', postIds)
+    : { data: [] }
+
+  const likedSet = new Set((myLikes ?? []).map(l => l.post_id))
 
   // Normalize likes and mark suggested posts
   const normalizedPosts = (posts ?? []).map(p => ({
     ...p,
     likes_count: p.likes?.[0]?.count ?? 0,
-    is_liked: (p.my_like ?? []).some((l: { user_id: string }) => l.user_id === user!.id),
+    is_liked: likedSet.has(p.id),
     is_suggested: p.user_id !== user!.id && !connectedUserIds.has(p.user_id),
   }))
 

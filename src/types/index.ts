@@ -20,7 +20,7 @@ export interface Post {
   image_url: string | null
   mood_tag: string | null
   created_at: string
-  user: Pick<User, 'id' | 'name' | 'avatar_url'>
+  user: Pick<User, 'id' | 'name' | 'avatar_url' | 'age' | 'gender' | 'bio'>
   likes_count: number
   comments_count: number
   is_liked?: boolean
