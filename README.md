@@ -6,15 +6,27 @@ Built for NLN 2026 hackathon.
 
 ---
 
+## Pitch & Demo Video
+
+<a href="https://www.youtube.com/watch?v=Ut7WEDiCEaM" target="_blank">
+  <img src="media/thumbnail.png" alt="Mha Phu La Pitch and Demo Video" max-width="100%" width="650" style="border-radius: 8px;" />
+</a>
+
+> Click the thumbnail above to watch our demo video on YouTube.
+
+---
+
 ## Team
+
+<img src="media/team.png" alt="Mha Phu La Team Photo" max-width="100%" width="650" />
 
 | Name | Role | LinkedIn |
 |------|------|----------|
-| Aayam Raj Shakya | Full-stack | [in/aayamrajshakya](https://linkedin.com/in/aayamrajshakya/) |
 | Yuv Raj Pant | Architecture design & Project management | [in/yuvrajpant56](https://linkedin.com/in/yuvrajpant56/) |
-| Deepankha Bajracharya | Back-end | [in/deepankha-bajracharya](https://linkedin.com/in/deepankha-bajracharya/) |
+| Aayam Raj Shakya | Full-stack | [in/aayamrajshakya](https://linkedin.com/in/aayamrajshakya/) |
 | Ashriya Tuladhar | Front-end | [in/ashriya-tuladhar](https://linkedin.com/in/ashriya-tuladhar/) |
 | Rashmi Kaspal | Front-end | [in/rashmi-kaspal-934591242](https://linkedin.com/in/rashmi-kaspal-934591242/) |
+| Deepankha Bajracharya | Back-end | [in/deepankha-bajracharya](https://linkedin.com/in/deepankha-bajracharya/) |
 
 ---
 
