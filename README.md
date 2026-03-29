@@ -15,10 +15,10 @@ Built for NLN 2026 hackathon.
 
 ## Getting started
 
-The repo includes a `secrets.txt` file with the real credentials already filled in. Just rename it:
+The repo includes a `xyz.txt` file with the real credentials already filled in. Just rename it:
 
 ```bash
-mv secrets.txt .env.local
+mv xyz.txt .env.local
 ```
 
 Install dependencies and start the dev server:
