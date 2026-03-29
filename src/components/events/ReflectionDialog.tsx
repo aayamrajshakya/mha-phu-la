@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { ReflectionData, KEYS, readLS, writeLS } from '@/lib/user-prefs'
 import { MHEvent } from '@/lib/events'
+import { recordActivityDay } from '@/lib/points'
 
 interface Props {
   event: MHEvent
@@ -58,6 +59,12 @@ export default function ReflectionDialog({ event, onClose, onSaved }: Props) {
     const existing = readLS<Record<string, ReflectionData>>(KEYS.reflections, {})
     writeLS(KEYS.reflections, { ...existing, [event.id]: reflection })
     onSaved(reflection)
+    fetch('/api/points', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'reflection_completed', reference_id: event.id }),
+    })
+    recordActivityDay()
     onClose()
   }
 
@@ -65,7 +72,7 @@ export default function ReflectionDialog({ event, onClose, onSaved }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end">
-      <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl px-5 py-6 shadow-xl">
+      <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl px-5 py-6 pb-28 shadow-xl">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-bold text-gray-900">How was it?</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
