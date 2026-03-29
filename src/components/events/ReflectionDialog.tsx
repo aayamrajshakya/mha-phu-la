@@ -65,7 +65,7 @@ export default function ReflectionDialog({ event, onClose, onSaved }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-end">
-      <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl px-5 py-6 shadow-xl">
+      <div className="w-full max-w-lg mx-auto bg-white rounded-t-3xl px-5 py-6 pb-28 shadow-xl">
         <div className="flex items-center justify-between mb-1">
           <h3 className="font-bold text-gray-900">How was it?</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
