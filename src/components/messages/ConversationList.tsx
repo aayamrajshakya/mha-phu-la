@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Conversation } from '@/types'
@@ -22,12 +22,46 @@ interface Props {
   friends: Friend[]
 }
 
-export default function ConversationList({ conversations, currentUserId, friends }: Props) {
+export default function ConversationList({ conversations: initialConversations, currentUserId, friends }: Props) {
+  const [conversations, setConversations] = useState(initialConversations)
   const [composing, setComposing] = useState(false)
   const [starting, setStarting] = useState<string | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    const convIds = conversations.map(c => c.id)
+    if (convIds.length === 0) return
+
+    const channel = supabase
+      .channel('conversation-list-messages')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => {
+          const msg = payload.new as { id: string; conversation_id: string; content: string; created_at: string; sender_id: string }
+          setConversations(prev => {
+            const idx = prev.findIndex(c => c.id === msg.conversation_id)
+            if (idx === -1) return prev
+            const updated = [...prev]
+            const conv = { ...updated[idx], last_message: msg.content, last_message_at: msg.created_at }
+            // bump unread count if message is from someone else
+            if (msg.sender_id !== currentUserId) {
+              conv.unread_count = (conv.unread_count ?? 0) + 1
+            }
+            // move conversation to top
+            updated.splice(idx, 1)
+            updated.unshift(conv)
+            return updated
+          })
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function openOrCreateConversation(friendId: string) {
     setStarting(friendId)
@@ -115,6 +149,7 @@ export default function ConversationList({ conversations, currentUserId, friends
               <Link
                 key={conv.id}
                 href={`/messages/${conv.id}`}
+                onClick={() => setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c))}
                 className="flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 transition-colors"
               >
                 <Avatar className="w-12 h-12">
