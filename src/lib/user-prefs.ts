@@ -412,14 +412,14 @@ export const IMAGE_QUESTIONS: ImageQuestionDef[] = [
       {
         id: 'energetic',
         label: 'Energetic & lively',
-        imageUrl: 'https://imgs.search.brave.com/jVe6xK7p_Ql8s55GrXeYzpBEiqxNSg2DM1-RdE9EtsM/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRpYS5nZXR0eWltYWdlcy5jb20vaWQvNDczMDY3MTkyL3ZlY3Rvci9iZWFjaC1wYXJ0eS5qcGc_cz02MTJ4NjEyJnc9MCZrPTIwJmM9aG8wWFZSeGdLU3pPRlpyR1YtVmdk',
+        imageUrl: 'https://previews.123rf.com/images/nd3000/nd30001607/nd3000160700412/60559881-happy-energetic-young-people-having-fun.jpg',
         tags: ['active', 'energetic', 'social', 'exercise', 'physical health'],
         vibeSet: 'active',
       },
       {
         id: 'quiet',
         label: 'Quiet & calm',
-        imageUrl: 'https://imgs.search.brave.com/H-2Bk3RKKj6_Gs35Ea2Gn-o554z3Fzf1FUh4v5SPL8E/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRpYS5nZXR0eWltYWdlcy5jb20vaWQvNTkwMzAzNjEzL3Bob3RvL3NpZGUtdmlldy1vZi1zZW5pb3ItY291cGxlLXRhbGtpbmctd2hpbGUtaGF2aW5nLWNvZmZlZS1hdC1jYWZldGVyaWEuanBn',
+        imageUrl: 'https://myofficepods.com/wp-content/uploads/2025/08/ChatboxDuo3.webp',
         tags: ['quiet', 'calm', 'relaxation', 'mindfulness', 'coffee'],
         vibeSet: 'quiet',
       },
