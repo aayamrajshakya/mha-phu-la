@@ -15,7 +15,7 @@ export default function LandingPage() {
         </div>
         <h1 className="text-4xl font-bold text-gray-900 mb-3">Mha Phu La?</h1>
         <p className="text-lg text-gray-600 mb-2">
-          A safe space to connect, share, and heal — together.
+          A safe space to connect, share, and heal together.
         </p>
         <p className="text-sm text-gray-500 mb-8">
           Find people nearby who understand what you&apos;re going through. No judgment, just support.
