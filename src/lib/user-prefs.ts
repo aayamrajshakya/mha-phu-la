@@ -15,15 +15,20 @@ import type { EventCategory } from './events'
 // ---------------------------------------------------------------------------
 
 export const KEYS = {
-  interests:       'mhafu_interests',        // string[]
-  radius:          'mhafu_radius',           // number (miles)
-  supportPrefs:    'mhafu_support_prefs',    // SupportPrefs
-  vibeCards:       'mhafu_vibe_cards',       // string[] of card IDs
-  scenarioPrefs:   'mhafu_scenario_prefs',   // Record<scenarioId, answerId>
-  sessionIntention:'mhafu_session_intention',// string (sessionStorage)
-  reflections:     'mhafu_event_reflections',// Record<eventId, ReflectionData>
-  eventBehavior:   'mhafu_event_interactions',// EventBehavior
-  sensitivePrefs:  'mhafu_sensitive_prefs',  // string[] of opted-in sensitive categories
+  interests:        'mhafu_interests',         // string[]
+  radius:           'mhafu_radius',            // number (miles)
+  supportPrefs:     'mhafu_support_prefs',     // SupportPrefs
+  vibeCards:        'mhafu_vibe_cards',        // string[] of card IDs
+  scenarioPrefs:    'mhafu_scenario_prefs',    // Record<scenarioId, answerId>
+  sessionIntention: 'mhafu_session_intention', // string (sessionStorage)
+  reflections:      'mhafu_event_reflections', // Record<eventId, ReflectionData>
+  eventBehavior:    'mhafu_event_interactions',// EventBehavior
+  sensitivePrefs:   'mhafu_sensitive_prefs',   // string[] of opted-in sensitive categories
+  // Layer 1 onboarding extras
+  ageRange:         'mhafu_age_range',         // string e.g. '25_34'
+  imageAnswerTags:  'mhafu_image_answer_tags', // string[] – tags derived from image Q answers
+  // Layer 2 support preferences
+  supportSpaces:    'mhafu_support_spaces',    // string[] of SupportSpace IDs
 } as const
 
 // ---------------------------------------------------------------------------
@@ -337,6 +342,230 @@ export function scenarioTagsFromAnswers(answers: Record<string, string>): string
     const q = SCENARIO_QUESTIONS.find(q => q.id === scenarioId)
     const opt = q?.options.find(o => o.id === answerId)
     if (opt) opt.tags.forEach(t => tags.add(t))
+  }
+  return [...tags]
+}
+
+// ---------------------------------------------------------------------------
+// Age ranges (Layer 1 — replaces exact age for privacy)
+// ---------------------------------------------------------------------------
+
+export const AGE_RANGES = [
+  { id: 'under_18', label: 'Under 18' },
+  { id: '18_24',    label: '18 – 24' },
+  { id: '25_34',    label: '25 – 34' },
+  { id: '35_44',    label: '35 – 44' },
+  { id: '45_54',    label: '45 – 54' },
+  { id: '55_plus',  label: '55 and over' },
+] as const
+
+// ---------------------------------------------------------------------------
+// Image questions (Layer 1 — replaces vibe cards + scenario questions)
+// 4 questions × 2 image options each.
+// Answers are stored in KEYS.imageAnswerTags (merged tag pool) and are also
+// used to derive supportPrefs.vibe / supportPrefs.groupSize at submit time.
+// ---------------------------------------------------------------------------
+
+export interface ImageOptionDef {
+  id: string
+  label: string
+  imageUrl: string
+  /** Tags merged into recommendation engine tag pool */
+  tags: string[]
+  /** If set, writes this value to SupportPrefs.vibe at onboarding completion */
+  vibeSet?: 'active' | 'quiet'
+  /** If set, writes this value to SupportPrefs.groupSize at onboarding completion */
+  groupSizeSet?: 'small' | 'large'
+}
+
+export interface ImageQuestionDef {
+  id: string
+  question: string
+  subtitle?: string
+  options: [ImageOptionDef, ImageOptionDef]
+}
+
+export const IMAGE_QUESTIONS: ImageQuestionDef[] = [
+  {
+    id: 'event_type',
+    question: 'What kind of events do you enjoy?',
+    subtitle: 'Helps us find the right experiences for you',
+    options: [
+      {
+        id: 'structured',
+        label: 'Organised & structured',
+        imageUrl: 'https://promoambitions.com/wp-content/uploads/2019/05/Business-Networking-Events-1.jpg',
+        tags: ['workshop', 'structured', 'professional led', 'learning', 'skill building'],
+      },
+      {
+        id: 'casual',
+        label: 'Relaxed & casual',
+        imageUrl: 'https://www.goodencenter.org/wp-content/uploads/2019/02/bigstock-223855057.jpg',
+        tags: ['casual', 'social', 'open', 'relaxed', 'community', 'coffee'],
+      },
+    ],
+  },
+  {
+    id: 'vibe_pref',
+    question: 'Do you prefer quiet or energetic events?',
+    options: [
+      {
+        id: 'energetic',
+        label: 'Energetic & lively',
+        imageUrl: 'https://imgs.search.brave.com/jVe6xK7p_Ql8s55GrXeYzpBEiqxNSg2DM1-RdE9EtsM/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRpYS5nZXR0eWltYWdlcy5jb20vaWQvNDczMDY3MTkyL3ZlY3Rvci9iZWFjaC1wYXJ0eS5qcGc_cz02MTJ4NjEyJnc9MCZrPTIwJmM9aG8wWFZSeGdLU3pPRlpyR1YtVmdk',
+        tags: ['active', 'energetic', 'social', 'exercise', 'physical health'],
+        vibeSet: 'active',
+      },
+      {
+        id: 'quiet',
+        label: 'Quiet & calm',
+        imageUrl: 'https://imgs.search.brave.com/H-2Bk3RKKj6_Gs35Ea2Gn-o554z3Fzf1FUh4v5SPL8E/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tZWRpYS5nZXR0eWltYWdlcy5jb20vaWQvNTkwMzAzNjEzL3Bob3RvL3NpZGUtdmlldy1vZi1zZW5pb3ItY291cGxlLXRhbGtpbmctd2hpbGUtaGF2aW5nLWNvZmZlZS1hdC1jYWZldGVyaWEuanBn',
+        tags: ['quiet', 'calm', 'relaxation', 'mindfulness', 'coffee'],
+        vibeSet: 'quiet',
+      },
+    ],
+  },
+  {
+    id: 'group_size',
+    question: 'How do you prefer to connect?',
+    options: [
+      {
+        id: 'small',
+        label: 'Small & intimate',
+        imageUrl: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&h=400&fit=crop',
+        tags: ['small group', 'intimate', 'low pressure', 'quiet', 'one on one'],
+        groupSizeSet: 'small',
+      },
+      {
+        id: 'large',
+        label: 'Open & social',
+        imageUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&h=400&fit=crop',
+        tags: ['social', 'community', 'connection', 'open', 'large group'],
+        groupSizeSet: 'large',
+      },
+    ],
+  },
+  {
+    id: 'event_goal',
+    question: 'What are you hoping to get from events?',
+    options: [
+      {
+        id: 'growth',
+        label: 'Learn & grow',
+        imageUrl: 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=600&h=400&fit=crop',
+        tags: ['workshop', 'learning', 'skill building', 'CBT', 'tools', 'awareness'],
+      },
+      {
+        id: 'connect',
+        label: 'Meet people',
+        imageUrl: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=600&h=400&fit=crop',
+        tags: ['social', 'connection', 'friendship', 'community', 'peer support'],
+      },
+    ],
+  },
+]
+
+// ---------------------------------------------------------------------------
+// Support spaces (Layer 2 — opt-in, non-diagnostic)
+// Shown after the 4 image questions. Fully skippable.
+// Sensitive ones also add to sensitivePrefs so gated events become visible.
+// ---------------------------------------------------------------------------
+
+export interface SupportSpaceDef {
+  id: string
+  label: string
+  emoji: string
+  /** Event categories boosted in recommendation engine */
+  categoryBoosts: EventCategory[]
+  /** If set, selecting this also adds the value to KEYS.sensitivePrefs */
+  sensitiveCategory?: string
+}
+
+export const SUPPORT_SPACES: SupportSpaceDef[] = [
+  {
+    id: 'stress_relief',
+    label: 'Stress relief',
+    emoji: '🧘',
+    categoryBoosts: ['Meditation', 'Yoga & Wellness', 'Mindfulness'],
+  },
+  {
+    id: 'peer_support',
+    label: 'Peer support',
+    emoji: '🤝',
+    categoryBoosts: ['Support Group', 'Social Anxiety Meetup'],
+  },
+  {
+    id: 'counseling',
+    label: 'Counseling events',
+    emoji: '🗣️',
+    categoryBoosts: ['Counseling'],
+  },
+  {
+    id: 'wellness_workshops',
+    label: 'Wellness workshops',
+    emoji: '🌱',
+    categoryBoosts: ['Journaling Workshop', 'Yoga & Wellness', 'Anxiety Workshop'],
+  },
+  {
+    id: 'quiet_gatherings',
+    label: 'Quiet gatherings',
+    emoji: '☕',
+    categoryBoosts: ['Coffee Chat', 'Mindfulness'],
+  },
+  {
+    id: 'recovery_support',
+    label: 'Substance recovery support',
+    emoji: '💚',
+    categoryBoosts: ['Recovery Circle'],
+    sensitiveCategory: 'recovery',
+  },
+  {
+    id: 'hiv_support',
+    label: 'HIV support community',
+    emoji: '🎗️',
+    categoryBoosts: ['Support Group'],
+    sensitiveCategory: 'recovery',
+  },
+  {
+    id: 'grief_support',
+    label: 'Grief support',
+    emoji: '🕊️',
+    categoryBoosts: ['Grief Support'],
+    sensitiveCategory: 'grief',
+  },
+  {
+    id: 'mindfulness',
+    label: 'Mindfulness',
+    emoji: '🌿',
+    categoryBoosts: ['Mindfulness', 'Meditation'],
+  },
+  {
+    id: 'hobby_therapy',
+    label: 'Hobby therapy',
+    emoji: '🎨',
+    categoryBoosts: ['Art Therapy', 'Walking Group', 'Coffee Chat'],
+  },
+]
+
+/** Derive merged category boost list from selected support space IDs */
+export function supportSpaceCategoryBoosts(selectedIds: string[]): EventCategory[] {
+  const cats = new Set<EventCategory>()
+  for (const id of selectedIds) {
+    const space = SUPPORT_SPACES.find(s => s.id === id)
+    if (space) space.categoryBoosts.forEach(c => cats.add(c))
+  }
+  return [...cats]
+}
+
+/** Derive image answer tags from answers Record<questionId, optionId> */
+export function imageAnswerTagsFromAnswers(answers: Record<string, string>): string[] {
+  const tags = new Set<string>()
+  for (const [qId, optId] of Object.entries(answers)) {
+    const q = IMAGE_QUESTIONS.find(q => q.id === qId)
+    if (q) {
+      const opt = q.options.find(o => o.id === optId)
+      if (opt) opt.tags.forEach(t => tags.add(t))
+    }
   }
   return [...tags]
 }

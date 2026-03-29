@@ -25,6 +25,7 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
   const [messages, setMessages] = useState<Message[]>(initialMessages)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
@@ -74,7 +75,10 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
     if (error) {
       console.error('Send failed:', error.message)
       setInput(content) // restore input on failure
+      setSendError(error.message)
+      setTimeout(() => setSendError(null), 4000)
     } else if (data) {
+      setSendError(null)
       // Add immediately — real-time subscription deduplicates if it also fires
       setMessages(prev => prev.some(m => m.id === data.id) ? prev : [...prev, data])
     }
@@ -90,7 +94,7 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-[calc(100vh-5rem)]">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-white sticky top-0 z-10">
         <Link href="/messages" className="text-gray-500 hover:text-gray-700">
@@ -133,6 +137,13 @@ export default function ChatWindow({ conversationId, currentUserId, partner, ini
         })}
         <div ref={bottomRef} />
       </div>
+
+      {/* Send error */}
+      {sendError && (
+        <div className="px-4 py-2 bg-red-50 border-t border-red-100 text-xs text-red-600">
+          Failed to send: {sendError}
+        </div>
+      )}
 
       {/* Input */}
       <div className="px-4 py-3 bg-white border-t border-gray-100 flex items-center gap-2">

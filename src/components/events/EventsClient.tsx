@@ -245,6 +245,9 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
   const [scenarioAnswers, setScenarioAnswers] = useState<Record<string, string>>({})
   const [sessionIntention, setSessionIntention] = useState<string | null>(null)
   const [sensitiveOptIns, setSensitiveOptIns] = useState<Set<string>>(new Set())
+  // Layer 1 & 2 signals from onboarding
+  const [imageAnswerTags, setImageAnswerTags] = useState<string[]>([])
+  const [supportSpaces, setSupportSpaces] = useState<string[]>([])
 
   useEffect(() => {
     try {
@@ -262,6 +265,8 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
       setBehavior(readLS<EventBehavior>(KEYS.eventBehavior, {}))
       setReflections(readLS<Record<string, ReflectionData>>(KEYS.reflections, {}))
       setSensitiveOptIns(new Set(readLS<string[]>(KEYS.sensitivePrefs, [])))
+      setImageAnswerTags(readLS<string[]>(KEYS.imageAnswerTags, []))
+      setSupportSpaces(readLS<string[]>(KEYS.supportSpaces, []))
 
       // Session intention from sessionStorage (session-only, ephemeral)
       const intention = readSession(KEYS.sessionIntention)
@@ -318,7 +323,9 @@ export default function EventsClient({ events, userLat, userLng, postMoodTags }:
     scenarioAnswers,
     sessionIntention,
     reflections,
-  }), [interests, supportPrefs, userLat, userLng, radiusMi, postMoodTags, behavior, vibeCardIds, scenarioAnswers, sessionIntention, reflections])
+    imageAnswerTags,
+    supportSpaces,
+  }), [interests, supportPrefs, userLat, userLng, radiusMi, postMoodTags, behavior, vibeCardIds, scenarioAnswers, sessionIntention, reflections, imageAnswerTags, supportSpaces])
 
   const scored: ScoredEvent[] = useMemo(() => scoreEvents(visibleEvents, ctx), [visibleEvents, ctx])
 

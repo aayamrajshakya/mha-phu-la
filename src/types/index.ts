@@ -3,6 +3,7 @@ export interface User {
   email: string
   name: string
   age: number | null
+  age_range: string | null
   bio: string | null
   avatar_url: string | null
   address: string | null
@@ -20,7 +21,7 @@ export interface Post {
   image_url: string | null
   mood_tag: string | null
   created_at: string
-  user: Pick<User, 'id' | 'name' | 'avatar_url' | 'age' | 'gender' | 'bio'>
+  user: Pick<User, 'id' | 'name' | 'avatar_url' | 'age' | 'age_range' | 'gender' | 'bio'>
   likes_count: number
   comments_count: number
   is_liked?: boolean

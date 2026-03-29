@@ -19,6 +19,7 @@ import {
   IntentionOption, INTENTION_OPTIONS,
   ReflectionData, VibeCard, VIBE_CARDS,
   vibeCardTagsFromIds, scenarioTagsFromAnswers, vibeCardCategoryBoosts,
+  supportSpaceCategoryBoosts,
 } from './user-prefs'
 
 // Re-export SupportPrefs so SideDrawer doesn't need to import from here AND user-prefs
@@ -50,10 +51,16 @@ export interface UserContext {
   behavior: EventBehavior
 
   // Extended preference signals (from user-prefs.ts)
-  vibeCardIds: string[]            // selected vibe card IDs
-  scenarioAnswers: Record<string, string> // scenario question → answer ID
-  sessionIntention: string | null  // current session intention ID (sessionStorage)
-  reflections: Record<string, ReflectionData>  // event feedback history
+  vibeCardIds: string[]                    // selected vibe card IDs
+  scenarioAnswers: Record<string, string>  // scenario question → answer ID
+  sessionIntention: string | null          // current session intention ID (sessionStorage)
+  reflections: Record<string, ReflectionData>
+
+  // Layer 1 — image question derived tags (onboarding)
+  imageAnswerTags?: string[]
+
+  // Layer 2 — support space preferences (opt-in, onboarding)
+  supportSpaces?: string[]
 }
 
 export interface ScoreBreakdown {
@@ -64,6 +71,7 @@ export interface ScoreBreakdown {
   location: number
   intentionBonus: number
   vibeCardBonus: number
+  supportSpaceBonus: number
   total: number
 }
 
@@ -86,8 +94,9 @@ const WEIGHTS = {
   behavior:   0.20,
   location:   0.12,
 }
-const MAX_INTENTION_BONUS   = 0.10
-const MAX_VIBE_CARD_BONUS   = 0.08
+const MAX_INTENTION_BONUS    = 0.10
+const MAX_VIBE_CARD_BONUS    = 0.08
+const MAX_SUPPORT_SPACE_BONUS = 0.06
 
 // ---------------------------------------------------------------------------
 // Interest + vibe card + scenario → tag vocabulary mapping
@@ -148,9 +157,14 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 // Score components
 // ---------------------------------------------------------------------------
 
-function buildUserTagSet(interests: string[], vibeCardIds: string[], scenarioAnswers: Record<string, string>): Set<string> {
+function buildUserTagSet(
+  interests: string[],
+  vibeCardIds: string[],
+  scenarioAnswers: Record<string, string>,
+  imageAnswerTags: string[] = [],
+): Set<string> {
   const tags = new Set<string>()
-  // From explicit interests
+  // From explicit interests (SideDrawer)
   for (const interest of interests) {
     for (const t of INTEREST_TAG_MAP[interest] ?? []) tags.add(t.toLowerCase())
   }
@@ -158,6 +172,8 @@ function buildUserTagSet(interests: string[], vibeCardIds: string[], scenarioAns
   for (const t of vibeCardTagsFromIds(vibeCardIds)) tags.add(t.toLowerCase())
   // From scenario answers
   for (const t of scenarioTagsFromAnswers(scenarioAnswers)) tags.add(t.toLowerCase())
+  // From Layer 1 image question answers (onboarding)
+  for (const t of imageAnswerTags) tags.add(t.toLowerCase())
   return tags
 }
 
@@ -265,6 +281,13 @@ function computeIntentionBonus(event: MHEvent, intentionId: string | null): numb
   return intention.categoryBoosts.includes(event.category) ? MAX_INTENTION_BONUS : 0
 }
 
+/** Support space bonus: +MAX_SUPPORT_SPACE_BONUS if any selected space boosts this category */
+function computeSupportSpaceBonus(event: MHEvent, supportSpaceIds: string[]): number {
+  if (supportSpaceIds.length === 0) return 0
+  const boosted = supportSpaceCategoryBoosts(supportSpaceIds)
+  return boosted.includes(event.category) ? MAX_SUPPORT_SPACE_BONUS : 0
+}
+
 /** Vibe card category bonus: proportional to how many selected cards directly boost this category */
 function computeVibeCardBonus(event: MHEvent, vibeCardIds: string[]): number {
   if (vibeCardIds.length === 0) return 0
@@ -307,8 +330,8 @@ function buildExplanation(breakdown: ScoreBreakdown, event: MHEvent, distanceKm:
 // ---------------------------------------------------------------------------
 
 export function scoreEvents(events: MHEvent[], ctx: UserContext): ScoredEvent[] {
-  // Pre-compute user tag set (interests + vibe cards + scenario answers merged)
-  const userTags = buildUserTagSet(ctx.interests, ctx.vibeCardIds, ctx.scenarioAnswers)
+  // Pre-compute user tag set (interests + vibe cards + scenario answers + image answers merged)
+  const userTags = buildUserTagSet(ctx.interests, ctx.vibeCardIds, ctx.scenarioAnswers, ctx.imageAnswerTags)
 
   // Pre-compute category history from behavior + event list
   const categoryHistory: Record<string, InteractionType[]> = {}
@@ -327,8 +350,9 @@ export function scoreEvents(events: MHEvent[], ctx: UserContext): ScoredEvent[] 
       const eventPref     = computeEventPrefScore(event)
       const behavior      = computeBehaviorScore(event, ctx.behavior, categoryHistory, ctx.postMoodTags, ctx.reflections)
       const { score: location, distanceKm } = computeLocationScore(event, ctx.lat, ctx.lng, ctx.radiusMi)
-      const intentionBonus  = computeIntentionBonus(event, ctx.sessionIntention)
-      const vibeCardBonus   = computeVibeCardBonus(event, ctx.vibeCardIds)
+      const intentionBonus    = computeIntentionBonus(event, ctx.sessionIntention)
+      const vibeCardBonus     = computeVibeCardBonus(event, ctx.vibeCardIds)
+      const supportSpaceBonus = computeSupportSpaceBonus(event, ctx.supportSpaces ?? [])
 
       const base =
         WEIGHTS.interest  * interest +
@@ -337,11 +361,11 @@ export function scoreEvents(events: MHEvent[], ctx: UserContext): ScoredEvent[] 
         WEIGHTS.behavior  * behavior +
         WEIGHTS.location  * location
 
-      const total = Math.min(1, base + intentionBonus + vibeCardBonus)
+      const total = Math.min(1, base + intentionBonus + vibeCardBonus + supportSpaceBonus)
 
       const breakdown: ScoreBreakdown = {
         interest, support, eventPref, behavior, location,
-        intentionBonus, vibeCardBonus, total,
+        intentionBonus, vibeCardBonus, supportSpaceBonus, total,
       }
 
       return {
