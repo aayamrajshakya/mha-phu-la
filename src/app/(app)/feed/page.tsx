@@ -37,7 +37,7 @@ export default async function FeedPage() {
     .from('posts')
     .select(`
       *,
-      user:profiles!posts_user_id_fkey(id, name, avatar_url),
+      user:profiles!posts_user_id_fkey(id, name, avatar_url, age, gender, bio),
       likes:post_likes(count)
     `)
     .neq('user_id', user!.id)

@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2, Users, UserMinus, ZoomIn, ZoomOut } from 'lucide-react'
+import { MapPin, Heart, Edit2, LogOut, Camera, Check, X, Loader2, Users, UserMinus, ZoomIn, ZoomOut, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from '@/lib/time'
 
 type Friend = { id: string; name: string; avatar_url: string | null; mood: string | null; connection_id: string }
@@ -213,6 +213,7 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
   ]
 
   const [friends, setFriends] = useState(initialFriends)
+  const [myPosts, setMyPosts] = useState(posts)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -262,6 +263,11 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
       setAvatarUrl(`${data.publicUrl}?t=${Date.now()}`)
     }
     setUploading(false)
+  }
+
+  async function handleDeletePost(postId: string) {
+    await supabase.from('posts').delete().eq('id', postId)
+    setMyPosts(prev => prev.filter(p => p.id !== postId))
   }
 
   async function handleUnfriend(connectionId: string) {
@@ -464,12 +470,12 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
 
       {/* Posts */}
       <div className="mt-2">
-        <p className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">Your posts</p>
-        {posts.length === 0 ? (
+        <p className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">My posts</p>
+        {myPosts.length === 0 ? (
           <p className="text-center text-gray-400 text-sm py-8">No posts yet — share something!</p>
         ) : (
           <div className="divide-y divide-gray-50">
-            {posts.map(post => (
+            {myPosts.map(post => (
               <div key={post.id} className="px-4 py-3 bg-white">
                 <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{post.content}</p>
                 {post.image_url && (
@@ -482,6 +488,12 @@ export default function ProfileClient({ profile, posts, friends: initialFriends 
                     {post.likes_count}
                   </span>
                   <span className="text-[10px] text-gray-300">{formatDistanceToNow(post.created_at)}</span>
+                  <button
+                    onClick={() => handleDeletePost(post.id)}
+                    className="ml-auto text-gray-300 hover:text-red-400 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             ))}
