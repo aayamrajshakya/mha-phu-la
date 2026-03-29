@@ -64,12 +64,17 @@ export default async function MessagesPage() {
     .eq('status', 'accepted')
 
   type FriendRow = { id: string; name: string; avatar_url: string | null; mood: string | null }
+  const seenFriendIds = new Set<string>()
   const friends: FriendRow[] = [
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...(sentConns ?? []).map((c: any) => c.receiver as FriendRow),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ...(receivedConns ?? []).map((c: any) => c.requester as FriendRow),
-  ].filter(Boolean)
+  ].filter(Boolean).filter(f => {
+    if (seenFriendIds.has(f.id)) return false
+    seenFriendIds.add(f.id)
+    return true
+  })
 
   return <ConversationList conversations={formattedConvs} currentUserId={user!.id} friends={friends} />
 }

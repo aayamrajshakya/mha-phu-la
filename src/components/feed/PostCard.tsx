@@ -162,8 +162,12 @@ export default function PostCard({ post, currentUserId, onLike, onDelete }: Prop
               <div>
                 <p className="font-bold text-gray-900 text-lg leading-tight">{author.name}</p>
                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  {author.age && (
-                    <span className="text-sm text-gray-500">{author.age} years old</span>
+                  {(author.age_range || author.age) && (
+                    <span className="text-sm text-gray-500">
+                      {author.age_range
+                        ? author.age_range.replace('_', ' – ').replace('under ', 'Under ').replace('plus', 'and over')
+                        : `${author.age} years old`}
+                    </span>
                   )}
                   {gender && (
                     <span className="flex items-center gap-1 text-sm text-gray-500">

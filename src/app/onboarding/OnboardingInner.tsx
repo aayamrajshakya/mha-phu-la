@@ -6,20 +6,39 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Heart, MapPin, Camera, ChevronRight, Loader2, Check } from 'lucide-react'
+import { Heart, MapPin, Camera, ChevronRight, Loader2, Check, SlidersHorizontal } from 'lucide-react'
 import {
-  VIBE_CARDS, SCENARIO_QUESTIONS,
   KEYS, writeLS,
+  AGE_RANGES,
+  IMAGE_QUESTIONS,
+  SUPPORT_SPACES,
+  imageAnswerTagsFromAnswers,
 } from '@/lib/user-prefs'
+import { type SupportPrefs, DEFAULT_SUPPORT_PREFS } from '@/lib/recommend'
+import { ImageChoice } from '@/components/onboarding/ImageChoice'
 
-const STEPS = ['name', 'age', 'gender', 'bio', 'vibe_cards', 'scenarios', 'location', 'photo'] as const
+const STEPS = ['name', 'age_range', 'gender', 'bio', 'image_questions', 'support_spaces', 'location', 'photo'] as const
 type Step = typeof STEPS[number]
 
 const GENDERS = [
-  { label: 'Male', symbol: '♂', symbolClass: 'text-blue-500' },
+  { label: 'Male',   symbol: '♂', symbolClass: 'text-blue-500' },
   { label: 'Female', symbol: '♀', symbolClass: 'text-pink-500' },
-  { label: 'Other', symbol: '⚧', symbolClass: 'bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent' },
+  { label: 'Other',  symbol: '⚧', symbolClass: 'bg-gradient-to-r from-blue-500 to-pink-500 bg-clip-text text-transparent' },
 ]
+
+// Support spaces style selector images (shown at top of Layer 2 step)
+const SPACE_STYLE_OPTIONS = [
+  {
+    id: 'structured',
+    label: 'Structured & led',
+    imageUrl: 'https://zhlvedruguvoayvhqpjg.supabase.co/storage/v1/object/public/tool-images/tools/3ef51cd0-7c33-4b3e-a685-ebd9b0a92362/da4dff49-2a9c-40bd-b14d-c7c8f8158f70.jpeg',
+  },
+  {
+    id: 'cozy',
+    label: 'Cozy & informal',
+    imageUrl: 'https://images.stockcake.com/public/1/0/8/1082ab62-3831-4cb1-a48b-adb330bff422_large/cozy-evening-together-stockcake.jpg',
+  },
+] as const
 
 export default function OnboardingInner() {
   const router = useRouter()
@@ -27,19 +46,30 @@ export default function OnboardingInner() {
 
   const [step, setStep] = useState<Step>('name')
   const [form, setForm] = useState({
-    name: '', age: '', gender: '', bio: '',
+    name: '', gender: '', bio: '',
     address: '', lat: null as number | null, lng: null as number | null,
     avatar_url: '',
   })
-  const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
-  const [scenarioAnswers, setScenarioAnswers] = useState<Record<string, string>>({})
-  const [currentScenario, setCurrentScenario] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+
+  // Layer 1: age range & image questions
+  const [selectedAgeRange, setSelectedAgeRange] = useState('')
+  const [imageAnswers, setImageAnswers]         = useState<Record<string, string>>({})
+  const [currentImageQ, setCurrentImageQ]       = useState(0)
+
+  // Layer 2: support spaces
+  const [spaceStyle, setSpaceStyle]       = useState<string | null>(null)
+  const [selectedSpaces, setSelectedSpaces] = useState<Set<string>>(new Set())
+
+  // Location + radius
+  const [radius, setRadius]                 = useState(5)
+
+  // UI state
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
   const [uploading, setUploading] = useState(false)
 
   const stepIndex = STEPS.indexOf(step)
-  const progress = ((stepIndex + 1) / STEPS.length) * 100
+  const progress  = ((stepIndex + 1) / STEPS.length) * 100
 
   function next() {
     const idx = STEPS.indexOf(step)
@@ -48,52 +78,52 @@ export default function OnboardingInner() {
   }
 
   function canProceed() {
-    if (step === 'name') return form.name.trim().length >= 2
-    if (step === 'age') return Number(form.age) >= 13 && Number(form.age) <= 100
-    if (step === 'gender') return form.gender !== ''
-    if (step === 'bio') return form.bio.trim().length >= 10
-    if (step === 'scenarios') return currentScenario >= SCENARIO_QUESTIONS.length
-    return true
+    if (step === 'name')            return form.name.trim().length >= 2
+    if (step === 'age_range')       return selectedAgeRange !== ''
+    if (step === 'gender')          return form.gender !== ''
+    if (step === 'bio')             return form.bio.trim().length >= 10
+    if (step === 'image_questions') return currentImageQ >= IMAGE_QUESTIONS.length
+    return true  // location, support_spaces, photo are all skippable/optional
   }
 
-  function toggleCard(id: string) {
-    setSelectedCards(prev => {
+  // Image questions: select + auto-advance after a brief visual delay
+  function handleImageAnswer(qId: string, optId: string) {
+    setImageAnswers(prev => ({ ...prev, [qId]: optId }))
+    setTimeout(() => {
+      setCurrentImageQ(prev =>
+        prev < IMAGE_QUESTIONS.length - 1 ? prev + 1 : IMAGE_QUESTIONS.length
+      )
+    }, 350)
+  }
+
+  function toggleSpace(id: string) {
+    setSelectedSpaces(prev => {
       const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
   }
 
-  function answerScenario(answerId: string) {
-    const q = SCENARIO_QUESTIONS[currentScenario]
-    if (!q) return
-    setScenarioAnswers(prev => ({ ...prev, [q.id]: answerId }))
-    // Auto-advance to next question or mark done
-    if (currentScenario < SCENARIO_QUESTIONS.length - 1) {
-      setCurrentScenario(i => i + 1)
-    } else {
-      setCurrentScenario(SCENARIO_QUESTIONS.length) // signals completion
-    }
-  }
-
   async function detectLocation() {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) { next(); return }
     setLoading(true)
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const { latitude, longitude } = pos.coords
-      setForm(f => ({ ...f, lat: latitude, lng: longitude }))
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
-        )
-        const data = await res.json()
-        const city = data.address?.city || data.address?.town || data.address?.village || ''
-        const country = data.address?.country || ''
-        setForm(f => ({ ...f, address: [city, country].filter(Boolean).join(', ') }))
-      } catch {}
-      setLoading(false)
-      next()
-    }, () => { setLoading(false); next() })
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        setForm(f => ({ ...f, lat: latitude, lng: longitude }))
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`
+          )
+          const data = await res.json()
+          const city    = data.address?.city || data.address?.town || data.address?.village || ''
+          const country = data.address?.country || ''
+          setForm(f => ({ ...f, address: [city, country].filter(Boolean).join(', ') }))
+        } catch {}
+        setLoading(false)
+      },
+      () => { setLoading(false) }
+    )
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -102,7 +132,7 @@ export default function OnboardingInner() {
     setUploading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const ext = file.name.split('.').pop()
+    const ext  = file.name.split('.').pop()
     const path = `avatars/${user.id}.${ext}`
     const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
     if (!error) {
@@ -118,32 +148,65 @@ export default function OnboardingInner() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth'); return }
 
-    // Save profile to Supabase (no preference data — stays client-side)
-    const { error } = await supabase.from('profiles').upsert({
-      id: user.id,
-      email: user.email,
-      name: form.name,
-      age: Number(form.age),
-      gender: form.gender,
-      bio: form.bio,
-      address: form.address,
-      lat: form.lat,
-      lng: form.lng,
+    // ── Supabase profile ──────────────────────────────────────────────────────
+    const { error: profileErr } = await supabase.from('profiles').upsert({
+      id:         user.id,
+      email:      user.email,
+      name:       form.name,
+      age_range:  selectedAgeRange,
+      gender:     form.gender,
+      bio:        form.bio,
+      address:    form.address,
+      lat:        form.lat,
+      lng:        form.lng,
       avatar_url: form.avatar_url,
+      preferred_radius: radius,
     })
+    if (profileErr) { setError(profileErr.message); setLoading(false); return }
 
-    if (error) { setError(error.message); setLoading(false); return }
+    // ── Derive SupportPrefs from image answers ────────────────────────────────
+    const supportPrefs: SupportPrefs = { ...DEFAULT_SUPPORT_PREFS }
+    const vibeAnswer      = imageAnswers['vibe_pref']
+    const groupSizeAnswer = imageAnswers['group_size']
+    if (vibeAnswer === 'energetic') supportPrefs.vibe = 'active'
+    else if (vibeAnswer === 'quiet') supportPrefs.vibe = 'quiet'
+    if (groupSizeAnswer === 'small') supportPrefs.groupSize = 'small'
+    else if (groupSizeAnswer === 'large') supportPrefs.groupSize = 'large'
+    writeLS(KEYS.supportPrefs, supportPrefs)
 
-    // Persist preference data to localStorage (private, client-only)
-    writeLS(KEYS.vibeCards, [...selectedCards])
-    writeLS(KEYS.scenarioPrefs, scenarioAnswers)
+    // ── Radius ────────────────────────────────────────────────────────────────
+    writeLS(KEYS.radius, radius)
+
+    // ── Image answer tags ─────────────────────────────────────────────────────
+    const allTags = imageAnswerTagsFromAnswers(imageAnswers)
+    // Also append spaceStyle tags
+    if (spaceStyle === 'structured') allTags.push('structured', 'professional led', 'workshop')
+    if (spaceStyle === 'cozy')       allTags.push('casual', 'relaxed', 'community', 'coffee')
+    writeLS(KEYS.imageAnswerTags, [...new Set(allTags)])
+
+    // ── Support spaces ────────────────────────────────────────────────────────
+    const spaceIds = [...selectedSpaces]
+    writeLS(KEYS.supportSpaces, spaceIds)
+
+    // Sensitive categories implied by selected spaces
+    const sensitiveCategories = new Set<string>()
+    for (const id of spaceIds) {
+      const space = SUPPORT_SPACES.find(s => s.id === id)
+      if (space?.sensitiveCategory) sensitiveCategories.add(space.sensitiveCategory)
+    }
+    if (sensitiveCategories.size > 0) {
+      writeLS(KEYS.sensitivePrefs, [...sensitiveCategories])
+    }
+
+    // ── Age range (localStorage only for privacy) ─────────────────────────────
+    writeLS(KEYS.ageRange, selectedAgeRange)
 
     router.push('/feed')
     router.refresh()
   }
 
-  const currentQ = SCENARIO_QUESTIONS[currentScenario]
-  const allScenariosAnswered = currentScenario >= SCENARIO_QUESTIONS.length
+  const currentQ              = IMAGE_QUESTIONS[currentImageQ]
+  const allQuestionsAnswered  = currentImageQ >= IMAGE_QUESTIONS.length
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-yellow-50 to-amber-50">
@@ -153,6 +216,7 @@ export default function OnboardingInner() {
 
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10">
         <div className="w-full max-w-sm">
+          {/* Brand */}
           <div className="flex items-center gap-2 mb-8">
             <div className="bg-yellow-400 text-gray-900 rounded-xl p-2">
               <Heart className="w-5 h-5" />
@@ -175,19 +239,29 @@ export default function OnboardingInner() {
             </div>
           )}
 
-          {/* ── age ── */}
-          {step === 'age' && (
+          {/* ── age range ── */}
+          {step === 'age_range' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">How old are you?</h2>
-              <p className="text-gray-500 mb-6 text-sm">You must be 13 or older to join</p>
-              <Input
-                type="number"
-                placeholder="Your age"
-                value={form.age}
-                onChange={e => setForm(f => ({ ...f, age: e.target.value }))}
-                className="h-12 rounded-xl text-base"
-                autoFocus min={13} max={100}
-              />
+              <p className="text-gray-500 mb-6 text-sm">We never share your exact age</p>
+              <div className="grid grid-cols-2 gap-2.5">
+                {AGE_RANGES.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => setSelectedAgeRange(r.id)}
+                    className={`py-3.5 rounded-2xl border-2 text-sm font-semibold transition-all ${
+                      selectedAgeRange === r.id
+                        ? 'border-yellow-500 bg-yellow-50 text-gray-900'
+                        : 'border-gray-100 bg-white text-gray-600 hover:border-yellow-200'
+                    }`}
+                  >
+                    {r.label}
+                    {selectedAgeRange === r.id && (
+                      <Check className="w-3.5 h-3.5 text-yellow-500 inline ml-1.5" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -202,7 +276,9 @@ export default function OnboardingInner() {
                     key={g.label}
                     onClick={() => setForm(f => ({ ...f, gender: g.label }))}
                     className={`flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all ${
-                      form.gender === g.label ? 'border-yellow-500 bg-yellow-50' : 'border-gray-100 bg-white hover:border-yellow-200'
+                      form.gender === g.label
+                        ? 'border-yellow-500 bg-yellow-50'
+                        : 'border-gray-100 bg-white hover:border-yellow-200'
                     }`}
                   >
                     <span className={`text-3xl w-10 text-center ${g.symbolClass}`}>{g.symbol}</span>
@@ -219,83 +295,105 @@ export default function OnboardingInner() {
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Tell us about yourself</h2>
               <p className="text-gray-500 mb-6 text-sm">Share a bit about your journey (min 10 characters)</p>
               <Textarea
-                placeholder="What's been on your mind lately? What brings you here?"
+                placeholder="What&apos;s been on your mind lately? What brings you here?"
                 value={form.bio}
                 onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
                 className="rounded-xl text-base resize-none"
-                rows={4} autoFocus
+                rows={4}
+                autoFocus
               />
             </div>
           )}
 
-          {/* ── vibe cards ── */}
-          {step === 'vibe_cards' && (
+          {/* ── image questions (Layer 1) ── */}
+          {step === 'image_questions' && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-1">What resonates with you?</h2>
-              <p className="text-gray-500 mb-2 text-sm">Pick as many as feel right — used privately to personalise your events</p>
-              <p className="text-[10px] text-gray-400 mb-5">Private · never shown to other users</p>
-              <div className="flex flex-col gap-2.5">
-                {VIBE_CARDS.map(card => {
-                  const active = selectedCards.has(card.id)
-                  return (
-                    <button
-                      key={card.id}
-                      onClick={() => toggleCard(card.id)}
-                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 text-left transition-all ${
-                        active ? 'border-yellow-400 bg-yellow-50' : 'border-gray-100 bg-white hover:border-yellow-200'
-                      }`}
-                    >
-                      <span className="text-xl flex-shrink-0">{card.emoji}</span>
-                      <span className="text-sm font-medium text-gray-800 flex-1">{card.label}</span>
-                      {active && <Check className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── scenarios ── */}
-          {step === 'scenarios' && (
-            <div>
-              {!allScenariosAnswered && currentQ ? (
+              {!allQuestionsAnswered && currentQ ? (
                 <>
-                  <div className="flex gap-1 mb-6">
-                    {SCENARIO_QUESTIONS.map((_, i) => (
+                  {/* Progress dots */}
+                  <div className="flex gap-1.5 mb-5">
+                    {IMAGE_QUESTIONS.map((_, i) => (
                       <div
                         key={i}
                         className={`flex-1 h-1 rounded-full transition-all ${
-                          i < currentScenario ? 'bg-yellow-400' : i === currentScenario ? 'bg-yellow-300' : 'bg-gray-200'
+                          i < currentImageQ ? 'bg-yellow-400' : i === currentImageQ ? 'bg-yellow-300' : 'bg-gray-200'
                         }`}
                       />
                     ))}
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-5">{currentQ.question}</h2>
-                  <div className="flex flex-col gap-2.5">
-                    {currentQ.options.map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={() => answerScenario(opt.id)}
-                        className={`p-4 rounded-2xl border-2 text-left text-sm font-medium transition-all ${
-                          scenarioAnswers[currentQ.id] === opt.id
-                            ? 'border-yellow-400 bg-yellow-50 text-gray-900'
-                            : 'border-gray-100 bg-white text-gray-700 hover:border-yellow-200'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-4 text-center">Private · used only for event recommendations</p>
+                  <h2 className="text-xl font-bold text-gray-900 mb-1">{currentQ.question}</h2>
+                  {currentQ.subtitle && (
+                    <p className="text-sm text-gray-400 mb-4">{currentQ.subtitle}</p>
+                  )}
+                  <ImageChoice
+                    options={currentQ.options as [typeof currentQ.options[0], typeof currentQ.options[1]]}
+                    selected={imageAnswers[currentQ.id] ?? null}
+                    onChange={(optId) => handleImageAnswer(currentQ.id, optId)}
+                  />
+                  <p className="text-[10px] text-gray-400 mt-4 text-center">
+                    Private · only used to personalise your event feed
+                  </p>
                 </>
               ) : (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-3xl">✨</span>
                   </div>
-                  <h2 className="text-xl font-bold text-gray-900 mb-2">All set!</h2>
-                  <p className="text-sm text-gray-500">Your preferences are saved privately and will personalise your event feed.</p>
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Great taste!</h2>
+                  <p className="text-sm text-gray-500">
+                    We&apos;ll use your answers to personalise your event recommendations.
+                  </p>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* ── support spaces (Layer 2 — opt-in) ── */}
+          {step === 'support_spaces' && (
+            <div>
+              <div className="flex items-start gap-3 mb-1">
+                <h2 className="text-xl font-bold text-gray-900 leading-snug">
+                  Which support spaces interest you?
+                </h2>
+              </div>
+              <p className="text-[11px] text-gray-400 mb-4">
+                Optional · private · you can change this any time in Settings
+              </p>
+
+              {/* Style image chooser */}
+              <p className="text-xs font-medium text-gray-500 mb-2">What kind of space feels right?</p>
+              <ImageChoice
+                options={SPACE_STYLE_OPTIONS as [typeof SPACE_STYLE_OPTIONS[0], typeof SPACE_STYLE_OPTIONS[1]]}
+                selected={spaceStyle}
+                onChange={setSpaceStyle}
+              />
+
+              {/* Specific support space chips */}
+              <p className="text-xs font-medium text-gray-500 mt-5 mb-2">Any specific areas?</p>
+              <div className="flex flex-wrap gap-2">
+                {SUPPORT_SPACES.map(space => {
+                  const active = selectedSpaces.has(space.id)
+                  return (
+                    <button
+                      key={space.id}
+                      onClick={() => toggleSpace(space.id)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        active
+                          ? 'bg-yellow-400 border-yellow-400 text-gray-900'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-yellow-300'
+                      }`}
+                    >
+                      <span>{space.emoji}</span>
+                      {space.label}
+                      {active && <Check className="w-3 h-3 stroke-[3]" />}
+                    </button>
+                  )
+                })}
+              </div>
+              {selectedSpaces.size > 0 && (
+                <p className="text-[10px] text-gray-400 mt-3">
+                  {selectedSpaces.size} area{selectedSpaces.size > 1 ? 's' : ''} selected · used only to surface relevant events
+                </p>
               )}
             </div>
           )}
@@ -304,7 +402,7 @@ export default function OnboardingInner() {
           {step === 'location' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-900 mb-1">Where are you?</h2>
-              <p className="text-gray-500 mb-6 text-sm">Used to show you people and posts nearby</p>
+              <p className="text-gray-500 mb-6 text-sm">Used to show you events and people nearby</p>
               <div className="flex flex-col gap-3">
                 <Button
                   onClick={detectLocation}
@@ -320,6 +418,34 @@ export default function OnboardingInner() {
                   onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
                   className="h-12 rounded-xl"
                 />
+                {form.address && (
+                  <div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-3 py-2 rounded-xl">
+                    <Check className="w-3.5 h-3.5" />
+                    {form.address}
+                  </div>
+                )}
+
+                {/* Radius selector */}
+                <div className="mt-2 bg-white border border-gray-100 rounded-2xl px-4 py-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <SlidersHorizontal className="w-4 h-4 text-yellow-500" />
+                    <p className="text-sm font-medium text-gray-700">How far would you travel?</p>
+                    <span className="ml-auto text-sm font-bold text-yellow-500">{radius} mi</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1}
+                    max={50}
+                    step={1}
+                    value={radius}
+                    onChange={e => setRadius(Number(e.target.value))}
+                    className="w-full accent-yellow-400"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                    <span>1 mi</span>
+                    <span>50 mi</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -341,44 +467,58 @@ export default function OnboardingInner() {
                   </div>
                   <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                 </label>
-                {uploading && <p className="text-sm text-yellow-500">Uploading...</p>}
+                {uploading && <p className="text-sm text-yellow-500">Uploading…</p>}
               </div>
             </div>
           )}
 
           {error && <p className="text-sm text-red-500 mt-3">{error}</p>}
 
+          {/* ── Navigation buttons ── */}
           <div className="mt-8 flex flex-col gap-3">
-            {step === 'location' ? (
-              <Button onClick={next} variant="outline" className="w-full h-12 rounded-full">
-                Skip for now
-              </Button>
-            ) : step === 'vibe_cards' ? (
-              <Button
-                onClick={next}
-                className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
-              >
-                {selectedCards.size > 0 ? `Continue with ${selectedCards.size} selected` : 'Skip for now'}
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            ) : step === 'scenarios' && allScenariosAnswered ? (
-              <Button
-                onClick={next}
-                className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
-              >
-                Continue <ChevronRight className="w-4 h-4" />
-              </Button>
-            ) : step !== 'scenarios' ? (
+            {step === 'image_questions' && !allQuestionsAnswered ? (
+              // While cycling through questions, no button — auto-advances on selection
+              <p className="text-center text-xs text-gray-400">Tap an image above to continue</p>
+            ) : step === 'support_spaces' ? (
+              <>
+                <Button
+                  onClick={next}
+                  className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
+                >
+                  {selectedSpaces.size > 0
+                    ? `Continue with ${selectedSpaces.size} selected`
+                    : 'Continue'}
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button onClick={next} variant="outline" className="w-full h-12 rounded-full text-gray-500">
+                  Skip for now
+                </Button>
+              </>
+            ) : step === 'location' ? (
+              <>
+                <Button
+                  onClick={next}
+                  disabled={loading}
+                  className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
+                >
+                  Continue <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button onClick={next} variant="outline" className="w-full h-12 rounded-full text-gray-500">
+                  Skip for now
+                </Button>
+              </>
+            ) : (
               <Button
                 onClick={step === 'photo' ? handleSubmit : next}
                 disabled={!canProceed() || loading || uploading}
                 className="w-full h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-semibold gap-2"
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                  <>{step === 'photo' ? 'Finish setup' : 'Continue'}<ChevronRight className="w-4 h-4" /></>
-                )}
+                {loading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <>{step === 'photo' ? 'Finish setup' : 'Continue'}<ChevronRight className="w-4 h-4" /></>
+                }
               </Button>
-            ) : null}
+            )}
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-4">
