@@ -34,10 +34,14 @@ export default async function ProfilePage() {
       .eq('status', 'accepted'),
   ])
 
-  const friends = [
+  const allFriends = [
     ...((sentConns ?? []).map((c: { id: string; receiver: unknown }) => ({ ...(c.receiver as object), connection_id: c.id }))),
     ...((receivedConns ?? []).map((c: { id: string; requester: unknown }) => ({ ...(c.requester as object), connection_id: c.id }))),
   ] as { id: string; name: string; avatar_url: string | null; mood: string | null; connection_id: string }[]
+
+  // Deduplicate by user id (a user can appear in both sent and received if both sent requests)
+  const seen = new Set<string>()
+  const friends = allFriends.filter(f => { if (seen.has(f.id)) return false; seen.add(f.id); return true })
 
   return (
     <ProfileClient
